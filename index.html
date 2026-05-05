@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Arena</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">LLM Arena</span>
+      </div>
+      <p class="logo-sub">Consulta ChatGPT, Gemini y Claude en paralelo. Un árbitro elige el mejor resultado.</p>
+    </header>
+
+    <!-- API Keys -->
+    <section class="card" id="section-keys">
+      <h2 class="section-title">API Keys</h2>
+      <div class="keys-grid">
+        <div class="key-field">
+          <label for="openai-key">OpenAI (ChatGPT)</label>
+          <input type="password" id="openai-key" placeholder="sk-proj-..." autocomplete="off" />
+        </div>
+        <div class="key-field">
+          <label for="gemini-key">Google (Gemini)</label>
+          <input type="password" id="gemini-key" placeholder="AIzaSy..." autocomplete="off" />
+        </div>
+        <div class="key-field">
+          <label for="claude-key">Anthropic (Claude)</label>
+          <input type="password" id="claude-key" placeholder="sk-ant-..." autocomplete="off" />
+        </div>
+      </div>
+    </section>
+
+    <!-- System Prompts -->
+    <section class="card" id="section-prompts">
+      <div class="section-header">
+        <h2 class="section-title">Prompts por modelo</h2>
+        <button class="toggle-btn" onclick="togglePrompts()">Mostrar / ocultar</button>
+      </div>
+      <div class="prompts-grid" id="prompts-grid">
+        <div class="prompt-field">
+          <div class="model-label">
+            <span class="dot" style="background:#10a37f;"></span>
+            ChatGPT
+          </div>
+          <textarea id="sys-gpt" rows="4">Eres un asistente experto. Responde de forma clara, precisa y concisa en español.</textarea>
+        </div>
+        <div class="prompt-field">
+          <div class="model-label">
+            <span class="dot" style="background:#4285F4;"></span>
+            Gemini
+          </div>
+          <textarea id="sys-gemini" rows="4">Eres un asistente experto. Responde de forma clara, precisa y concisa en español.</textarea>
+        </div>
+        <div class="prompt-field">
+          <div class="model-label">
+            <span class="dot" style="background:#D4A27F;"></span>
+            Claude
+          </div>
+          <textarea id="sys-claude" rows="4">Eres un asistente experto. Responde de forma clara, precisa y concisa en español.</textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- Question -->
+    <section class="card">
+      <h2 class="section-title">Tu pregunta</h2>
+      <textarea id="user-question" rows="4" placeholder="Escribe aquí tu pregunta para los tres modelos..."></textarea>
+      <button class="send-btn" id="send-btn" onclick="runArena()">
+        Consultar los tres modelos ↗
+      </button>
+    </section>
+
+    <!-- Progress -->
+    <div class="progress-bar" id="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+
+    <!-- Results -->
+    <section id="results" class="hidden">
+      <div class="results-grid">
+
+        <div class="result-card" id="card-gpt">
+          <div class="result-card-header">
+            <div class="model-label">
+              <span class="dot" style="background:#10a37f;"></span>
+              <span>ChatGPT</span>
+            </div>
+            <span class="status-chip" id="status-gpt">Esperando</span>
+          </div>
+          <div class="result-text" id="text-gpt">—</div>
+        </div>
+
+        <div class="result-card" id="card-gemini">
+          <div class="result-card-header">
+            <div class="model-label">
+              <span class="dot" style="background:#4285F4;"></span>
+              <span>Gemini</span>
+            </div>
+            <span class="status-chip" id="status-gemini">Esperando</span>
+          </div>
+          <div class="result-text" id="text-gemini">—</div>
+        </div>
+
+        <div class="result-card" id="card-claude">
+          <div class="result-card-header">
+            <div class="model-label">
+              <span class="dot" style="background:#D4A27F;"></span>
+              <span>Claude</span>
+            </div>
+            <span class="status-chip" id="status-claude">Esperando</span>
+          </div>
+          <div class="result-text" id="text-claude">—</div>
+        </div>
+
+      </div>
+
+      <!-- Arbiter -->
+      <div class="arbiter-card">
+        <div class="arbiter-header">
+          <span class="dot" style="background:#7F77DD;"></span>
+          <strong>Árbitro</strong>
+          <span class="arbiter-sub">Claude evalúa y decide</span>
+        </div>
+        <div class="arbiter-text" id="arbiter-text">Esperando respuestas...</div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
