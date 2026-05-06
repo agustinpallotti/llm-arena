@@ -34,10 +34,58 @@
         <button class="new-btn" onclick="newQuery()">+ Nueva consulta</button>
       </div>
 
-      <div class="history-section">
-        <p class="history-label">Historial</p>
+      <!-- Tabs -->
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab active" id="tab-history" onclick="switchTab('history')">Historial</button>
+        <button class="sidebar-tab" id="tab-profile" onclick="switchTab('profile')">Perfil</button>
+        <button class="sidebar-tab" id="tab-docs" onclick="switchTab('docs')">Docs</button>
+      </div>
+
+      <!-- Panel: Historial -->
+      <div class="sidebar-panel" id="panel-history">
         <div class="history-list" id="history-list">
           <p class="history-empty" id="history-empty">Sin consultas aún</p>
+        </div>
+      </div>
+
+      <!-- Panel: Perfil -->
+      <div class="sidebar-panel hidden" id="panel-profile">
+        <div class="profile-form">
+          <div class="profile-field">
+            <label>Nombre</label>
+            <input type="text" id="profile-name" placeholder="Ej: Agustín Pallotti" />
+          </div>
+          <div class="profile-field">
+            <label>Profesión / Rol</label>
+            <input type="text" id="profile-role" placeholder="Ej: Emprendedor, diseñador..." />
+          </div>
+          <div class="profile-field">
+            <label>Contexto personal</label>
+            <textarea id="profile-context" rows="4" placeholder="Cuéntale a los modelos quién eres, en qué trabajas, qué proyectos tienes..."></textarea>
+          </div>
+          <div class="profile-field">
+            <label>Estilo de respuesta preferido</label>
+            <textarea id="profile-style" rows="3" placeholder="Ej: Respuestas cortas y directas. Sin tecnicismos. Con ejemplos prácticos..."></textarea>
+          </div>
+          <div class="profile-field">
+            <label>Temas de interés</label>
+            <input type="text" id="profile-topics" placeholder="Ej: startups, marketing, IA..." />
+          </div>
+          <button class="profile-save-btn" onclick="saveProfile()">Guardar perfil</button>
+          <p class="profile-saved hidden" id="profile-saved">✓ Perfil guardado</p>
+        </div>
+      </div>
+
+      <!-- Panel: Documentos -->
+      <div class="sidebar-panel hidden" id="panel-docs">
+        <div class="docs-form">
+          <p class="docs-hint">Agrega textos que los modelos usarán como referencia: tu CV, descripción de tu empresa, notas importantes, etc.</p>
+          <div id="docs-list"></div>
+          <div class="doc-add-form">
+            <input type="text" id="doc-title" placeholder="Título (ej: Mi CV)" class="doc-title-input" />
+            <textarea id="doc-content" rows="4" placeholder="Pega aquí el contenido..."></textarea>
+            <button class="profile-save-btn" onclick="addDocument()">+ Agregar documento</button>
+          </div>
         </div>
       </div>
 
@@ -52,7 +100,6 @@
       <div class="settings-panel hidden" id="settings-panel">
         <div class="settings-inner">
           <h2 class="settings-title">Configuración</h2>
-
           <div class="setting-group">
             <label class="setting-label">OpenAI API Key</label>
             <input type="password" id="openai-key" class="setting-input mono" placeholder="sk-proj-..." />
@@ -65,9 +112,7 @@
             <label class="setting-label">Anthropic Claude API Key</label>
             <input type="password" id="claude-key" class="setting-input mono" placeholder="sk-ant-..." />
           </div>
-
           <hr class="setting-divider" />
-
           <p class="setting-label">Prompts por modelo</p>
           <div class="prompts-grid">
             <div class="prompt-field">
@@ -83,13 +128,18 @@
               <textarea id="sys-claude" rows="3">Eres un asistente experto. Responde de forma clara, precisa y concisa en español.</textarea>
             </div>
           </div>
-
           <button class="save-settings-btn" onclick="saveSettings()">Guardar configuración</button>
         </div>
       </div>
 
+      <!-- Memory Banner -->
+      <div class="memory-banner hidden" id="memory-banner">
+        <span class="memory-icon">🧠</span>
+        <span id="memory-summary">Usando tu perfil y contexto personal</span>
+      </div>
+
       <!-- Query Area -->
-      <div class="query-area" id="query-area">
+      <div class="query-area">
         <div class="query-inner">
           <h2 class="query-title">¿Qué quieres preguntar hoy?</h2>
           <textarea id="user-question" class="question-input" rows="4" placeholder="Escribe tu pregunta para los tres modelos..."></textarea>
@@ -106,7 +156,6 @@
 
       <!-- Results -->
       <div id="results" class="results hidden">
-
         <div class="results-grid">
           <div class="result-card" id="card-gpt">
             <div class="result-card-header">
@@ -139,13 +188,11 @@
           </div>
           <div class="arbiter-text" id="arbiter-text">Esperando respuestas...</div>
         </div>
-
       </div>
 
     </main>
   </div>
 
-  <!-- Firebase -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
