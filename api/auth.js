@@ -1,7 +1,7 @@
-onst crypto = require('crypto');
+const crypto = require('crypto');
 
-export default function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://ai.agustinpallotti.com');
+module.exports = function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -9,9 +9,9 @@ export default function handler(req, res) {
 
   const { password } = req.body;
   const secret = process.env.APP_SECRET;
+
   if (!password || !secret) return res.status(400).json({ ok: false });
 
-  // Constant-time comparison to prevent timing attacks
   const a = Buffer.from(password.padEnd(128));
   const b = Buffer.from(secret.padEnd(128));
   let match = false;
@@ -20,10 +20,9 @@ export default function handler(req, res) {
   } catch { match = false; }
 
   if (match) {
-    // Generate a session token signed with APP_SECRET
     const token = crypto.createHmac('sha256', secret).update('llm-arena-session').digest('hex');
     return res.status(200).json({ ok: true, token });
   } else {
     setTimeout(() => res.status(401).json({ ok: false }), 500);
   }
-}
+};

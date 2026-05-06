@@ -1,16 +1,15 @@
 const crypto = require('crypto');
 
-// ── CORS helper ───────────────────────────────────────────────────────────────
 function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://ai.agustinpallotti.com');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token');
 }
 
-// ── Token verification ────────────────────────────────────────────────────────
 function verifyToken(token) {
   if (!token) return false;
   const secret = process.env.APP_SECRET;
+  if (!secret) return false;
   const expected = crypto.createHmac('sha256', secret).update('llm-arena-session').digest('hex');
   try {
     const a = Buffer.from(token.padEnd(128));
@@ -19,7 +18,6 @@ function verifyToken(token) {
   } catch { return false; }
 }
 
-// ── Model callers ─────────────────────────────────────────────────────────────
 async function callGPT(systemPrompt, userMsg) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -78,29 +76,25 @@ async function callClaude(systemPrompt, userMsg) {
   return data.content.map(b => b.text || '').join('');
 }
 
-// ── Main handler ──────────────────────────────────────────────────────────────
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Verify session token
   const token = req.headers['x-session-token'];
-  if (!verifyToken(token)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  if (!verifyToken(token)) return res.status(401).json({ error: 'Unauthorized' });
 
   const { model, systemPrompt, userMsg } = req.body;
   if (!model || !userMsg) return res.status(400).json({ error: 'Missing fields' });
 
   try {
     let result;
-    if (model === 'gpt')    result = await callGPT(systemPrompt || '', userMsg);
+    if      (model === 'gpt')    result = await callGPT(systemPrompt || '', userMsg);
     else if (model === 'gemini') result = await callGemini(systemPrompt || '', userMsg);
     else if (model === 'claude') result = await callClaude(systemPrompt || '', userMsg);
     else return res.status(400).json({ error: 'Unknown model: ' + model });
     return res.status(200).json({ result });
-  } catch (e) {
+  } catch(e) {
     return res.status(500).json({ error: e.message });
   }
-}
+};
