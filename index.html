@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LLM Arena — ai.agustinpallotti.com</title>
+  <title>Lupa — ai.agustinpallotti.com</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
@@ -13,9 +13,9 @@
   <!-- LOGIN SCREEN -->
   <div id="login-screen" class="login-screen">
     <div class="login-box">
-      <div class="login-logo">⚡</div>
-      <h1 class="login-title">LLM Arena</h1>
-      <p class="login-sub">Acceso privado</p>
+      <div class="login-logo">🔍</div>
+      <h1 class="login-title">Lupa</h1>
+      <p class="login-sub">Tu buscador de mejores respuestas</p>
       <input type="password" id="login-input" placeholder="Contraseña" class="login-input" onkeydown="if(event.key==='Enter') checkLogin()" />
       <button class="login-btn" onclick="checkLogin()">Entrar</button>
       <p class="login-error hidden" id="login-error">Contraseña incorrecta</p>
@@ -28,8 +28,8 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div class="logo">
-          <span class="logo-icon">⚡</span>
-          <span class="logo-text">LLM Arena</span>
+          <span class="logo-icon">🔍</span>
+          <span class="logo-text">Lupa</span>
         </div>
         <button class="new-btn" onclick="newQuery()">+ Nueva consulta</button>
       </div>
@@ -153,8 +153,8 @@
       <!-- Query Area -->
       <div class="query-area">
         <div class="query-inner">
-          <h2 class="query-title">¿Qué quieres preguntar hoy?</h2>
-          <textarea id="user-question" class="question-input" rows="4" placeholder="Escribe tu pregunta... los modelos se seleccionarán automáticamente."></textarea>
+          <h2 class="query-title">¿Qué quieres encontrar hoy?</h2>
+          <textarea id="user-question" class="question-input" rows="4" placeholder="Escríbele a Lupa... los mejores modelos responderán por ti."></textarea>
 
           <!-- Model Toggles -->
           <div class="model-toggles">
@@ -243,7 +243,7 @@
           <div class="arbiter-header">
             <span class="dot arbiter"></span>
             <strong>Árbitro</strong>
-            <span class="arbiter-sub">GPT-5.4-mini evalúa y decide</span>
+            <span class="arbiter-sub">Lupa elige la mejor respuesta</span>
           </div>
           <div class="arbiter-text" id="arbiter-text">Esperando respuestas...</div>
         </div>
