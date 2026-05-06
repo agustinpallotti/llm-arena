@@ -114,24 +114,50 @@ Razón: [por qué es el mejor en 2 líneas]`;
 }
 
 async function detectModels(question) {
-  const prompt = `Analiza esta pregunta y determina qué modelos de IA son más adecuados.
+  // Claude decides — more impartial, tends to be self-critical
+  // GPT is explicitly excluded from being the decider to avoid self-selection bias
+  const prompt = `Eres un selector imparcial de modelos de IA. Tu único trabajo es decidir qué modelo es el MÁS ADECUADO para responder esta pregunta.
+
 Pregunta: "${question}"
-Modelos:
-- gpt: ChatGPT — código, lógica, matemáticas, instrucciones paso a paso
-- gemini: Gemini — información reciente, noticias, datos actuales
-- claude: Claude — redacción, análisis, creatividad, razonamiento
-Responde SOLO con JSON:
-{"models": ["gpt", "claude"], "reason": "explicación breve en español"}
-Incluye mínimo 2 modelos. Para general incluye los 3.`;
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+
+Modelos disponibles y sus fortalezas reales:
+- gpt: ChatGPT GPT-4o-mini — código, matemáticas, instrucciones paso a paso, lógica estructurada, programación
+- gemini: Google Gemini 2.5 Flash — información reciente, noticias, eventos actuales, búsqueda web, datos en tiempo real
+- claude: Anthropic Claude — redacción creativa, análisis profundo, razonamiento ético, textos largos, síntesis, humanidades
+
+Reglas estrictas:
+1. Elige UNO como primero (el mejor para esta pregunta específica)
+2. Sé honesto — no favorezcas a ninguno por defecto
+3. Para preguntas generales o ambiguas, elige claude como primero
+4. Para código o matemáticas, elige gpt como primero
+5. Para noticias o información reciente (post-2024), elige gemini como primero
+
+Responde SOLO con JSON válido sin texto adicional:
+{"models": ["claude", "gpt", "gemini"], "reason": "razón breve en español"}
+
+El orden importa: el PRIMERO es quien responderá.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY },
-    body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: prompt }], max_tokens: 150 })
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 150,
+      messages: [{ role: 'user', content: prompt }]
+    })
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  try { return JSON.parse(data.choices[0].message.content.replace(/```json|```/g,'').trim()); }
-  catch { return { models: ['gpt','claude'], reason: 'Selección por defecto' }; }
+  if (data.error) throw new Error(JSON.stringify(data.error));
+  try {
+    const text = data.content.map(b => b.text||'').join('');
+    return JSON.parse(text.replace(/```json|```/g,'').trim());
+  } catch {
+    return { models: ['claude','gpt','gemini'], reason: 'Selección por defecto' };
+  }
 }
 
 module.exports = async function handler(req, res) {
