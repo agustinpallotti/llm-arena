@@ -154,38 +154,9 @@
       <div class="query-area">
         <div class="query-inner">
           <h2 class="query-title">¿Qué quieres encontrar hoy?</h2>
-          <textarea id="user-question" class="question-input" rows="4" placeholder="Escríbele a Lupa... los mejores modelos responderán por ti."></textarea>
-
-          <!-- Model Toggles -->
-          <div class="model-toggles">
-            <div class="toggle-item">
-              <span class="dot gpt"></span>
-              <span class="toggle-label">ChatGPT</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-gpt" checked onchange="toggleModel('gpt')" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="toggle-item">
-              <span class="dot gemini"></span>
-              <span class="toggle-label">Gemini</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-gemini" checked onchange="toggleModel('gemini')" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="toggle-item">
-              <span class="dot claude"></span>
-              <span class="toggle-label">Claude</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-claude" checked onchange="toggleModel('claude')" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
+          <textarea id="user-question" class="question-input" rows="4" placeholder="Escríbele a Lupa..."></textarea>
 
           <p class="detect-status hidden" id="detect-status"></p>
-          <p class="detect-reason hidden" id="detect-reason"></p>
 
           <!-- File Upload -->
           <div class="file-upload-area">
@@ -203,7 +174,7 @@
           </div>
 
           <button class="send-btn" id="send-btn" onclick="runArena()">
-            Consultar los modelos ↗
+            Preguntar ↗
           </button>
         </div>
       </div>
@@ -215,38 +186,31 @@
 
       <!-- Results -->
       <div id="results" class="results hidden">
-        <div class="results-grid">
-          <div class="result-card" id="card-gpt">
-            <div class="result-card-header">
-              <div class="model-label"><span class="dot gpt"></span><span>ChatGPT</span></div>
-              <span class="status-chip" id="status-gpt">Esperando</span>
+
+        <!-- Primary answer -->
+        <div class="primary-card" id="primary-card">
+          <div class="primary-card-header">
+            <div class="model-label" id="primary-model-label">
+              <span class="dot gpt" id="primary-dot"></span>
+              <span id="primary-model-name">—</span>
+              <span class="lupa-badge">🔍 Elegido por Lupa</span>
             </div>
-            <div class="result-text" id="text-gpt">—</div>
+            <span class="status-chip" id="primary-status">Consultando...</span>
           </div>
-          <div class="result-card" id="card-gemini">
-            <div class="result-card-header">
-              <div class="model-label"><span class="dot gemini"></span><span>Gemini</span></div>
-              <span class="status-chip" id="status-gemini">Esperando</span>
-            </div>
-            <div class="result-text" id="text-gemini">—</div>
-          </div>
-          <div class="result-card" id="card-claude">
-            <div class="result-card-header">
-              <div class="model-label"><span class="dot claude"></span><span>Claude</span></div>
-              <span class="status-chip" id="status-claude">Esperando</span>
-            </div>
-            <div class="result-text" id="text-claude">—</div>
-          </div>
+          <div class="result-text" id="primary-text">—</div>
         </div>
 
-        <div class="arbiter-card">
-          <div class="arbiter-header">
-            <span class="dot arbiter"></span>
-            <strong>Árbitro</strong>
-            <span class="arbiter-sub">Lupa elige la mejor respuesta</span>
-          </div>
-          <div class="arbiter-text" id="arbiter-text">Esperando respuestas...</div>
+        <!-- Other opinions -->
+        <div id="other-opinions-section" class="hidden">
+          <div class="other-opinions-header">Otras opiniones</div>
+          <div class="results-grid" id="other-opinions-grid"></div>
         </div>
+
+        <!-- Ask others button -->
+        <button class="ask-others-btn" id="ask-others-btn" onclick="askOthers()">
+          Pedir otras opiniones
+        </button>
+
       </div>
 
     </main>

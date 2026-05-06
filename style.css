@@ -734,3 +734,51 @@ body {
   margin-left: 4px;
   vertical-align: middle;
 }
+
+/* ── Primary Card (Lupa mode) ── */
+.primary-card {
+  background: var(--surface);
+  border: 2px solid var(--winner-border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 12px;
+}
+.primary-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.lupa-badge {
+  font-size: 11px;
+  background: var(--winner-bg);
+  color: var(--winner);
+  border: 1px solid var(--winner-border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  margin-left: 8px;
+}
+
+/* ── Ask Others ── */
+.ask-others-btn {
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  margin-top: 4px;
+}
+.ask-others-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+.ask-others-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.other-opinions-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
