@@ -626,3 +626,87 @@ body {
   margin-bottom: 10px;
   line-height: 1.5;
 }
+
+/* ── File Upload ── */
+.file-upload-area { margin-bottom: 8px; }
+.file-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.file-upload-btn:hover { background: var(--bg); border-color: var(--muted); color: var(--text); }
+
+.file-preview {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#file-info { font-size: 12px; color: var(--text); flex: 1; }
+.file-preview-actions { display: flex; gap: 8px; align-items: center; }
+.file-save-btn {
+  font-size: 12px;
+  background: var(--winner-bg);
+  color: var(--winner);
+  border: 1px solid var(--winner-border);
+  border-radius: var(--radius-xs);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: opacity 0.15s;
+}
+.file-save-btn:hover { opacity: 0.8; }
+.file-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.file-clear-btn {
+  font-size: 12px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+}
+.file-clear-btn:hover { color: var(--danger); }
+
+/* ── Files List ── */
+.file-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.file-item-header { display: flex; align-items: center; gap: 8px; }
+.file-item-icon { font-size: 16px; flex-shrink: 0; }
+.file-item-info { flex: 1; min-width: 0; }
+.file-item-name { font-size: 13px; font-weight: 500; color: var(--text); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-item-meta { font-size: 11px; color: var(--muted); display: block; }
+.file-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.file-action-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 3px 7px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.1s;
+  font-family: 'Inter', sans-serif;
+}
+.file-action-btn:hover { background: var(--bg); color: var(--text); }
+.file-delete:hover { color: var(--danger); border-color: var(--danger); }

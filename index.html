@@ -39,6 +39,7 @@
         <button class="sidebar-tab active" id="tab-history" onclick="switchTab('history')">Historial</button>
         <button class="sidebar-tab" id="tab-profile" onclick="switchTab('profile')">Perfil</button>
         <button class="sidebar-tab" id="tab-docs" onclick="switchTab('docs')">Docs</button>
+        <button class="sidebar-tab" id="tab-files" onclick="switchTab('files')">Archivos</button>
       </div>
 
       <!-- Panel: Historial -->
@@ -86,6 +87,14 @@
             <textarea id="doc-content" rows="4" placeholder="Pega aquí el contenido..."></textarea>
             <button class="profile-save-btn" onclick="addDocument()">+ Agregar documento</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Panel: Archivos -->
+      <div class="sidebar-panel hidden" id="panel-files">
+        <div class="docs-form">
+          <p class="docs-hint">Archivos guardados en tu repositorio personal. Úsalos en cualquier consulta.</p>
+          <div id="files-list"><p class="history-empty">Sin archivos guardados</p></div>
         </div>
       </div>
 
@@ -175,6 +184,21 @@
           <p class="detect-status hidden" id="detect-status"></p>
           <p class="detect-reason hidden" id="detect-reason"></p>
 
+          <!-- File Upload -->
+          <div class="file-upload-area">
+            <label class="file-upload-btn" for="file-input">
+              📎 Adjuntar archivo
+            </label>
+            <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.txt,.md,.doc,.docx,.xls,.xlsx,image/*" onchange="handleFileSelect(event)" />
+          </div>
+          <div class="file-preview hidden" id="file-preview">
+            <span id="file-info"></span>
+            <div class="file-preview-actions">
+              <button class="file-save-btn hidden" id="file-save-btn" onclick="saveFileToStorage()">Guardar en Archivos</button>
+              <button class="file-clear-btn" onclick="clearFile()">✕ Quitar</button>
+            </div>
+          </div>
+
           <button class="send-btn" id="send-btn" onclick="runArena()">
             Consultar los modelos ↗
           </button>
@@ -225,6 +249,8 @@
     </main>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
