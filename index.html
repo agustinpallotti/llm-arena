@@ -142,9 +142,41 @@
       <div class="query-area">
         <div class="query-inner">
           <h2 class="query-title">¿Qué quieres preguntar hoy?</h2>
-          <textarea id="user-question" class="question-input" rows="4" placeholder="Escribe tu pregunta para los tres modelos..."></textarea>
+          <textarea id="user-question" class="question-input" rows="4" placeholder="Escribe tu pregunta... los modelos se seleccionarán automáticamente."></textarea>
+
+          <!-- Model Toggles -->
+          <div class="model-toggles">
+            <div class="toggle-item">
+              <span class="dot gpt"></span>
+              <span class="toggle-label">ChatGPT</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-gpt" checked onchange="toggleModel('gpt')" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-item">
+              <span class="dot gemini"></span>
+              <span class="toggle-label">Gemini</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-gemini" checked onchange="toggleModel('gemini')" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="toggle-item">
+              <span class="dot claude"></span>
+              <span class="toggle-label">Claude</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-claude" checked onchange="toggleModel('claude')" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <p class="detect-status hidden" id="detect-status"></p>
+          <p class="detect-reason hidden" id="detect-reason"></p>
+
           <button class="send-btn" id="send-btn" onclick="runArena()">
-            Consultar los tres modelos ↗
+            Consultar los modelos ↗
           </button>
         </div>
       </div>
@@ -184,7 +216,7 @@
           <div class="arbiter-header">
             <span class="dot arbiter"></span>
             <strong>Árbitro</strong>
-            <span class="arbiter-sub">Claude evalúa y decide</span>
+            <span class="arbiter-sub">GPT-5.4-mini evalúa y decide</span>
           </div>
           <div class="arbiter-text" id="arbiter-text">Esperando respuestas...</div>
         </div>
