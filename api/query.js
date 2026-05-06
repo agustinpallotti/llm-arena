@@ -103,7 +103,7 @@ Razón: [por qué es el mejor en 2 líneas]`;
         { role: 'system', content: 'Eres un árbitro imparcial. Evalúa con rigor y objetividad. Nunca favorezcas a ChatGPT solo porque comparte tu origen.' },
         { role: 'user', content: prompt }
       ],
-      max_tokens: 600
+      max_completion_tokens: 600
     })
   });
   const data = await res.json();
