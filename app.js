@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -13,22 +13,22 @@ const firebaseConfig = {
   appId: "1:507852214387:web:e3c14d75c81266476b5a06"
 };
 const firebaseApp = initializeApp(firebaseConfig);
-const db          = getFirestore(firebaseApp);
-const storage     = getStorage(firebaseApp);
-const auth        = getAuth(firebaseApp);
-
-// Sign in anonymously so Firebase rules (request.auth != null) are satisfied
+const db      = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
+const auth    = getAuth(firebaseApp);
 signInAnonymously(auth).catch(e => console.error('Firebase auth error:', e));
 
-let SESSION_TOKEN = sessionStorage.getItem('llm-arena-token') || null;
-let currentFileData = null; // holds processed file for current query
+let SESSION_TOKEN   = sessionStorage.getItem('llm-arena-token') || null;
+let currentThreadId = null;  // active conversation thread
+let currentThread   = [];    // array of turns [{question, winner, gpt, gemini, claude}]
+let currentFileData = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function checkLogin() {
   const password = document.getElementById('login-input').value;
   if (!password) return;
   try {
-    const res  = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+    const res  = await fetch('/api/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
     const data = await res.json();
     if (data.ok && data.token) {
       SESSION_TOKEN = data.token;
@@ -39,7 +39,7 @@ async function checkLogin() {
       document.getElementById('login-input').value = '';
       document.getElementById('login-input').focus();
     }
-  } catch(e) {
+  } catch {
     document.getElementById('login-error').textContent = 'Error de conexión.';
     document.getElementById('login-error').classList.remove('hidden');
   }
@@ -55,9 +55,9 @@ window.addEventListener('DOMContentLoaded', () => { if (SESSION_TOKEN) showApp()
 // ── Proxy ─────────────────────────────────────────────────────────────────────
 async function callProxy(body) {
   const res = await fetch('/api/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Session-Token': SESSION_TOKEN },
-    body: JSON.stringify(body)
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-Session-Token':SESSION_TOKEN},
+    body:JSON.stringify(body)
   });
   if (res.status === 401) { sessionStorage.clear(); location.reload(); throw new Error('Sesión expirada.'); }
   const data = await res.json();
@@ -68,8 +68,8 @@ async function callProxy(body) {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 window.switchTab = function(tab) {
   ['history','profile','docs','files'].forEach(t => {
-    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
-    document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+    document.getElementById('panel-'+t).classList.toggle('hidden', t!==tab);
   });
 };
 
@@ -81,13 +81,159 @@ function saveSettings() {
   toggleSettings();
 }
 function loadSettings() {
-  document.getElementById('sys-gpt').value    = localStorage.getItem('llm-sys-gpt')    || 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
-  document.getElementById('sys-gemini').value = localStorage.getItem('llm-sys-gemini') || 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
-  document.getElementById('sys-claude').value = localStorage.getItem('llm-sys-claude') || 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
+  const def = 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
+  document.getElementById('sys-gpt').value    = localStorage.getItem('llm-sys-gpt')    || def;
+  document.getElementById('sys-gemini').value = localStorage.getItem('llm-sys-gemini') || def;
+  document.getElementById('sys-claude').value = localStorage.getItem('llm-sys-claude') || def;
 }
 function toggleSettings() { document.getElementById('settings-panel').classList.toggle('hidden'); }
-window.saveSettings = saveSettings;
+window.saveSettings   = saveSettings;
 window.toggleSettings = toggleSettings;
+
+// ── Thread Management ─────────────────────────────────────────────────────────
+function buildConversationContext(thread) {
+  if (!thread || !thread.length) return '';
+  let ctx = '\n\n--- CONVERSACIÓN ANTERIOR (mantén este contexto) ---\n';
+  thread.forEach((turn, i) => {
+    ctx += `\nTurno ${i+1}:\nUsuario: ${turn.question}\n`;
+    if (turn.winner) {
+      const winnerResponse = turn[turn.winner];
+      if (winnerResponse) ctx += `Mejor respuesta (${turn.winner}): ${winnerResponse}\n`;
+    }
+  });
+  ctx += '--- FIN CONVERSACIÓN ---\n';
+  return ctx;
+}
+
+function extractWinnerModel(arbiterText) {
+  const match = arbiterText.match(/Ganador:\s*(ChatGPT|Gemini|Claude)/i);
+  if (!match) return null;
+  const name = match[1].toLowerCase();
+  if (name === 'chatgpt') return 'gpt';
+  return name;
+}
+
+// ── History / Threads ─────────────────────────────────────────────────────────
+async function saveThread(question, results, arbiterText, modelsUsed, fileName) {
+  const winner = extractWinnerModel(arbiterText);
+  const turn   = { question, arbiter: arbiterText, winner, modelsUsed, fileName: fileName||null,
+    gpt: results.gpt||null, gemini: results.gemini||null, claude: results.claude||null,
+    createdAt: new Date() };
+
+  if (currentThreadId) {
+    // Append turn to existing thread
+    const threadRef  = doc(db, 'threads', currentThreadId);
+    const threadSnap = await getDoc(threadRef);
+    if (threadSnap.exists()) {
+      const data = threadSnap.data();
+      const turns = data.turns || [];
+      turns.push(turn);
+      await updateDoc(threadRef, { turns, updatedAt: new Date() });
+      currentThread = turns;
+    }
+  } else {
+    // Create new thread
+    const threadRef = await addDoc(collection(db, 'threads'), {
+      title:     question.substring(0, 60),
+      turns:     [turn],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    currentThreadId = threadRef.id;
+    currentThread   = [turn];
+  }
+  loadHistory();
+}
+
+async function loadHistory() {
+  try {
+    const q    = query(collection(db, 'threads'), orderBy('updatedAt', 'desc'));
+    const snap = await getDocs(q);
+    const list  = document.getElementById('history-list');
+    const empty = document.getElementById('history-empty');
+    list.innerHTML = '';
+    if (snap.empty) { list.appendChild(empty); empty.classList.remove('hidden'); return; }
+
+    snap.forEach(docSnap => {
+      const data    = docSnap.data();
+      const turns   = data.turns || [];
+      const btn     = document.createElement('button');
+      btn.className = 'history-item';
+      const date    = data.updatedAt?.toDate?.() || new Date();
+      const dateStr = date.toLocaleDateString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+      const turnCount = turns.length > 1 ? `<span class="thread-count">${turns.length} turnos</span>` : '';
+      const hasFile   = turns.some(t => t.fileName);
+      btn.innerHTML = `
+        <span class="history-item-q">${escapeHtml(data.title || turns[0]?.question || '—')}${hasFile?' 📎':''}</span>
+        <span class="history-item-date">${dateStr} ${turnCount}</span>`;
+      btn.onclick = () => loadThreadItem(docSnap.id, data, btn);
+      if (docSnap.id === currentThreadId) btn.classList.add('active');
+      list.appendChild(btn);
+    });
+  } catch(e) { console.error(e); }
+}
+
+async function loadThreadItem(threadId, data, btn) {
+  document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  currentThreadId = threadId;
+  currentThread   = data.turns || [];
+
+  // Render all turns in the conversation view
+  renderThread(currentThread);
+}
+
+function renderThread(turns) {
+  const resultsEl = document.getElementById('results');
+  resultsEl.classList.remove('hidden');
+
+  // Show last turn in the cards
+  const last = turns[turns.length - 1];
+  if (!last) return;
+
+  document.getElementById('user-question').value = last.question;
+  ['gpt','gemini','claude'].forEach(m => {
+    setText(m,    last[m] || '[No consultado]');
+    setStatus(m,  last[m] ? 'done':'error', last[m] ? 'Listo':'No usado');
+    document.getElementById('card-'+m).classList.toggle('model-disabled', !last[m]);
+  });
+  document.getElementById('arbiter-text').textContent = last.arbiter || '—';
+
+  // Highlight winner
+  if (last.winner) highlightWinner(last.winner);
+
+  // Show conversation history banner if multi-turn
+  const banner = document.getElementById('thread-banner');
+  if (turns.length > 1) {
+    banner.classList.remove('hidden');
+    banner.textContent = `💬 Conversación de ${turns.length} turnos — continuando hilo`;
+  } else {
+    banner.classList.add('hidden');
+  }
+
+  if (last.modelsUsed) {
+    ['gpt','gemini','claude'].forEach(m => { activeModels[m] = last.modelsUsed.includes(m); });
+    updateModelToggles();
+  }
+}
+
+window.newQuery = function() {
+  // Start fresh thread
+  currentThreadId = null;
+  currentThread   = [];
+  document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('user-question').value = '';
+  document.getElementById('results').classList.add('hidden');
+  document.getElementById('progress-bar').classList.add('hidden');
+  document.getElementById('detect-reason').classList.add('hidden');
+  document.getElementById('thread-banner').classList.add('hidden');
+  ['gpt','gemini','claude'].forEach(m => { activeModels[m] = true; });
+  updateModelToggles();
+  clearFile();
+  setProgress(0);
+  document.getElementById('user-question').focus();
+};
 
 // ── File Processing ───────────────────────────────────────────────────────────
 async function processFile(file) {
@@ -100,28 +246,21 @@ async function processFile(file) {
 
   if (isImage) {
     const base64 = await fileToBase64(file);
-    return { type: 'image', mimeType, base64: base64.split(',')[1], name };
+    return { type:'image', mimeType, base64:base64.split(',')[1], name };
   }
-
   if (isPDF) {
-    // Extract text from PDF using pdf.js
     const base64 = await fileToBase64(file);
     const text   = await extractPDFText(file);
-    return { type: 'document', mimeType, text, name, base64: base64.split(',')[1] };
+    return { type:'document', mimeType, text, name, base64:base64.split(',')[1] };
   }
-
   if (isCSV || isText) {
     const text = await file.text();
-    return { type: 'document', mimeType, text, name };
+    return { type:'document', mimeType, text, name };
   }
-
-  // Fallback: try reading as text
   try {
     const text = await file.text();
-    return { type: 'document', mimeType, text, name };
-  } catch {
-    throw new Error('Tipo de archivo no soportado: ' + name);
-  }
+    return { type:'document', mimeType, text, name };
+  } catch { throw new Error('Tipo de archivo no soportado: ' + name); }
 }
 
 async function fileToBase64(file) {
@@ -134,10 +273,9 @@ async function fileToBase64(file) {
 }
 
 async function extractPDFText(file) {
-  // Use pdf.js loaded from CDN
   try {
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    if (!pdfjsLib) return '[PDF cargado - texto no extraíble sin pdf.js]';
+    if (!pdfjsLib) return '[PDF cargado - instala pdf.js para extraer texto]';
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     let text = '';
@@ -150,35 +288,27 @@ async function extractPDFText(file) {
   } catch { return '[Error extrayendo texto del PDF]'; }
 }
 
-// ── File Upload UI ────────────────────────────────────────────────────────────
 window.handleFileSelect = async function(event) {
-  const file = event.target.files[0];
+  const file    = event.target.files[0];
   if (!file) return;
-
   const preview = document.getElementById('file-preview');
   const info    = document.getElementById('file-info');
   const saveBtn = document.getElementById('file-save-btn');
-
   preview.classList.remove('hidden');
   info.textContent = `⏳ Procesando ${file.name}...`;
   saveBtn.classList.add('hidden');
-
   try {
-    currentFileData = await processFile(file);
-    const sizeKB    = (file.size / 1024).toFixed(1);
-    const typeLabel = currentFileData.type === 'image' ? '🖼️ Imagen' : '📄 Documento';
+    currentFileData  = await processFile(file);
+    const sizeKB     = (file.size/1024).toFixed(1);
+    const typeLabel  = currentFileData.type === 'image' ? '🖼️ Imagen' : '📄 Documento';
     info.textContent = `${typeLabel} · ${file.name} · ${sizeKB} KB`;
-    if (currentFileData.text) {
-      info.textContent += ` · ${currentFileData.text.length.toLocaleString()} caracteres extraídos`;
-    }
+    if (currentFileData.text) info.textContent += ` · ${currentFileData.text.length.toLocaleString()} caracteres`;
     saveBtn.classList.remove('hidden');
     saveBtn.dataset.filename = file.name;
-    saveBtn.dataset.filetype = file.type;
-    // Store file reference for saving
     saveBtn._file = file;
   } catch(e) {
     info.textContent = '❌ Error: ' + e.message;
-    currentFileData = null;
+    currentFileData  = null;
   }
 };
 
@@ -193,31 +323,19 @@ window.saveFileToStorage = async function() {
   const saveBtn = document.getElementById('file-save-btn');
   const file    = saveBtn._file;
   if (!file || !currentFileData) return;
-
   saveBtn.disabled    = true;
   saveBtn.textContent = 'Guardando...';
-
   try {
-    const fileName  = `files/${Date.now()}_${file.name}`;
+    const fileName   = `files/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, fileName);
     await uploadBytes(storageRef, file);
     const url = await getDownloadURL(storageRef);
-
     await addDoc(collection(db, 'files'), {
-      name:      file.name,
-      type:      file.type,
-      size:      file.size,
-      storagePath: fileName,
-      url,
-      text:      currentFileData.text || null,
-      createdAt: new Date()
+      name:file.name, type:file.type, size:file.size,
+      storagePath:fileName, url, text:currentFileData.text||null, createdAt:new Date()
     });
-
-    saveBtn.textContent = '✓ Guardado en Archivos';
-    setTimeout(() => {
-      saveBtn.disabled    = false;
-      saveBtn.textContent = 'Guardar en Archivos';
-    }, 2500);
+    saveBtn.textContent = '✓ Guardado';
+    setTimeout(() => { saveBtn.disabled=false; saveBtn.textContent='Guardar en Archivos'; }, 2500);
     loadStoredFiles();
   } catch(e) {
     saveBtn.textContent = 'Error al guardar';
@@ -232,20 +350,15 @@ async function loadStoredFiles() {
     const snap = await getDocs(q);
     const list = document.getElementById('files-list');
     list.innerHTML = '';
-
-    if (snap.empty) {
-      list.innerHTML = '<p class="history-empty">Sin archivos guardados</p>';
-      return;
-    }
-
+    if (snap.empty) { list.innerHTML='<p class="history-empty">Sin archivos guardados</p>'; return; }
     snap.forEach(docSnap => {
-      const data = { id: docSnap.id, ...docSnap.data() };
-      const item = document.createElement('div');
+      const data   = { id:docSnap.id, ...docSnap.data() };
+      const item   = document.createElement('div');
       item.className = 'file-item';
-      const sizeKB = (data.size / 1024).toFixed(1);
-      const icon   = data.type?.startsWith('image/') ? '🖼️' : data.type === 'application/pdf' ? '📄' : data.type?.includes('csv') ? '📊' : '📝';
+      const sizeKB = (data.size/1024).toFixed(1);
+      const icon   = data.type?.startsWith('image/') ? '🖼️' : data.type==='application/pdf' ? '📄' : data.type?.includes('csv') ? '📊' : '📝';
       const date   = data.createdAt?.toDate?.() || new Date();
-      const dateStr = date.toLocaleDateString('es-MX', { day:'2-digit', month:'short' });
+      const dateStr= date.toLocaleDateString('es-MX', {day:'2-digit',month:'short'});
       item.innerHTML = `
         <div class="file-item-header">
           <span class="file-item-icon">${icon}</span>
@@ -256,7 +369,7 @@ async function loadStoredFiles() {
           <div class="file-item-actions">
             <button class="file-action-btn" onclick="useStoredFile('${docSnap.id}')" title="Usar en consulta">↑</button>
             <a class="file-action-btn" href="${data.url}" target="_blank" title="Descargar">↓</a>
-            <button class="file-action-btn file-delete" onclick="deleteStoredFile('${docSnap.id}', '${data.storagePath}')" title="Eliminar">✕</button>
+            <button class="file-action-btn file-delete" onclick="deleteStoredFile('${docSnap.id}','${data.storagePath}')" title="Eliminar">✕</button>
           </div>
         </div>`;
       list.appendChild(item);
@@ -268,45 +381,37 @@ window.useStoredFile = async function(fileId) {
   try {
     const snap = await getDoc(doc(db, 'files', fileId));
     if (!snap.exists()) return;
-    const data = snap.data();
-    // Load file from URL and process
+    const data     = snap.data();
     const response = await fetch(data.url);
-    const blob = await response.blob();
-    const file = new File([blob], data.name, { type: data.type });
+    const blob     = await response.blob();
+    const file     = new File([blob], data.name, { type:data.type });
     currentFileData = await processFile(file);
-
-    // Show preview
-    const preview = document.getElementById('file-preview');
-    const info    = document.getElementById('file-info');
+    const preview   = document.getElementById('file-preview');
+    const info      = document.getElementById('file-info');
     preview.classList.remove('hidden');
     info.textContent = `📁 ${data.name} (desde Archivos)`;
     document.getElementById('file-save-btn').classList.add('hidden');
-
-    // Switch to main tab
     switchTab('history');
-    alert(`"${data.name}" listo para usar en tu próxima consulta.`);
-  } catch(e) { console.error(e); alert('Error cargando archivo: ' + e.message); }
+    alert(`"${data.name}" listo para tu próxima consulta.`);
+  } catch(e) { alert('Error cargando archivo: ' + e.message); }
 };
 
 window.deleteStoredFile = async function(fileId, storagePath) {
   if (!confirm('¿Eliminar este archivo?')) return;
   try {
     await deleteDoc(doc(db, 'files', fileId));
-    if (storagePath) {
-      const storageRef = ref(storage, storagePath);
-      await deleteObject(storageRef).catch(() => {});
-    }
+    if (storagePath) await deleteObject(ref(storage, storagePath)).catch(()=>{});
     loadStoredFiles();
   } catch(e) { console.error(e); }
 };
 
 // ── Model Toggles ─────────────────────────────────────────────────────────────
-const activeModels = { gpt: true, gemini: true, claude: true };
+const activeModels = { gpt:true, gemini:true, claude:true };
 window.toggleModel = function(model) {
   const enabled = Object.values(activeModels).filter(Boolean).length;
   if (activeModels[model] && enabled <= 2) {
     alert('Debes tener al menos 2 modelos activos.');
-    document.getElementById('toggle-' + model).checked = true;
+    document.getElementById('toggle-'+model).checked = true;
     return;
   }
   activeModels[model] = !activeModels[model];
@@ -314,8 +419,8 @@ window.toggleModel = function(model) {
 };
 function updateModelToggles() {
   ['gpt','gemini','claude'].forEach(m => {
-    const card   = document.getElementById('card-' + m);
-    const toggle = document.getElementById('toggle-' + m);
+    const card   = document.getElementById('card-'+m);
+    const toggle = document.getElementById('toggle-'+m);
     if (card)   card.classList.toggle('model-disabled', !activeModels[m]);
     if (toggle) toggle.checked = activeModels[m];
   });
@@ -324,7 +429,7 @@ async function autoDetectModels(question) {
   try {
     document.getElementById('detect-status').textContent = '🔍 Analizando pregunta...';
     document.getElementById('detect-status').classList.remove('hidden');
-    const data = await callProxy({ action: 'detect', question });
+    const data = await callProxy({ action:'detect', question });
     ['gpt','gemini','claude'].forEach(m => { activeModels[m] = data.models.includes(m); });
     updateModelToggles();
     document.getElementById('detect-reason').textContent = data.reason || '';
@@ -336,11 +441,11 @@ async function autoDetectModels(question) {
 // ── Profile ───────────────────────────────────────────────────────────────────
 async function saveProfile() {
   const profile = {
-    name: document.getElementById('profile-name').value,
-    role: document.getElementById('profile-role').value,
+    name:    document.getElementById('profile-name').value,
+    role:    document.getElementById('profile-role').value,
     context: document.getElementById('profile-context').value,
-    style: document.getElementById('profile-style').value,
-    topics: document.getElementById('profile-topics').value,
+    style:   document.getElementById('profile-style').value,
+    topics:  document.getElementById('profile-topics').value,
   };
   await setDoc(doc(db, 'user', 'profile'), profile);
   const saved = document.getElementById('profile-saved');
@@ -385,7 +490,7 @@ async function addDocument() {
   const title   = document.getElementById('doc-title').value.trim();
   const content = document.getElementById('doc-content').value.trim();
   if (!title || !content) { alert('Escribe un título y el contenido.'); return; }
-  await addDoc(collection(db, 'documents'), { title, content, createdAt: new Date() });
+  await addDoc(collection(db, 'documents'), { title, content, createdAt:new Date() });
   document.getElementById('doc-title').value   = '';
   document.getElementById('doc-content').value = '';
   loadDocuments();
@@ -398,7 +503,7 @@ async function loadDocuments() {
     const list = document.getElementById('docs-list');
     list.innerHTML = '';
     snap.forEach(docSnap => {
-      const data = { id: docSnap.id, ...docSnap.data() };
+      const data = { id:docSnap.id, ...docSnap.data() };
       userDocs.push(data);
       const item = document.createElement('div');
       item.className = 'doc-item';
@@ -443,95 +548,22 @@ function updateMemoryBanner() {
   }
 }
 
-// ── History ───────────────────────────────────────────────────────────────────
-async function saveToHistory(question, results, arbiterText, modelsUsed, fileName) {
-  try {
-    await addDoc(collection(db, 'history'), {
-      question, arbiter: arbiterText, modelsUsed, fileName: fileName || null,
-      gpt: results.gpt || null, gemini: results.gemini || null, claude: results.claude || null,
-      createdAt: new Date()
-    });
-    loadHistory();
-  } catch(e) { console.error(e); }
-}
-async function loadHistory() {
-  try {
-    const q    = query(collection(db, 'history'), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    const list  = document.getElementById('history-list');
-    const empty = document.getElementById('history-empty');
-    list.innerHTML = '';
-    if (snap.empty) { list.appendChild(empty); empty.classList.remove('hidden'); return; }
-    snap.forEach(docSnap => {
-      const data    = docSnap.data();
-      const btn     = document.createElement('button');
-      btn.className = 'history-item';
-      const date    = data.createdAt?.toDate?.() || new Date();
-      const dateStr = date.toLocaleDateString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
-      const fileTag = data.fileName ? ` 📎` : '';
-      btn.innerHTML = `<span class="history-item-q">${escapeHtml(data.question)}${fileTag}</span><span class="history-item-date">${dateStr}</span>`;
-      btn.onclick   = () => loadHistoryItem(data, btn);
-      list.appendChild(btn);
-    });
-  } catch(e) { console.error(e); }
-}
-async function getRecentHistoryContext() {
-  try {
-    const q    = query(collection(db, 'history'), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    const items = [];
-    snap.forEach(d => items.push(d.data()));
-    const recent = items.slice(0, 5);
-    if (!recent.length) return '';
-    let text = '\n\n--- CONSULTAS RECIENTES ---\n';
-    recent.forEach((item, i) => { text += `${i+1}. "${item.question}"\n`; });
-    return text + '--- FIN HISTORIAL ---\n';
-  } catch { return ''; }
-}
-function loadHistoryItem(data, btn) {
-  document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('user-question').value = data.question;
-  ['gpt','gemini','claude'].forEach(m => {
-    setText(m,    data[m] || '[No consultado]');
-    setStatus(m,  data[m] ? 'done' : 'error', data[m] ? 'Listo' : 'No usado');
-  });
-  document.getElementById('arbiter-text').textContent = data.arbiter || '—';
-  document.getElementById('results').classList.remove('hidden');
-  if (data.modelsUsed) {
-    ['gpt','gemini','claude'].forEach(m => { activeModels[m] = data.modelsUsed.includes(m); });
-    updateModelToggles();
-  }
-}
-window.newQuery = function() {
-  document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
-  document.getElementById('user-question').value = '';
-  document.getElementById('results').classList.add('hidden');
-  document.getElementById('progress-bar').classList.add('hidden');
-  document.getElementById('detect-reason').classList.add('hidden');
-  ['gpt','gemini','claude'].forEach(m => { activeModels[m] = true; });
-  updateModelToggles();
-  clearFile();
-  setProgress(0);
-  document.getElementById('user-question').focus();
-};
-
 // ── UI Helpers ────────────────────────────────────────────────────────────────
-function setProgress(pct) { document.getElementById('progress-fill').style.width = pct + '%'; }
+function setProgress(pct) { document.getElementById('progress-fill').style.width = pct+'%'; }
 function setStatus(id, type, label) {
-  const el = document.getElementById('status-' + id);
-  el.className   = 'status-chip ' + type;
+  const el = document.getElementById('status-'+id);
+  el.className   = 'status-chip '+type;
   el.textContent = label;
 }
-function setText(id, text) { document.getElementById('text-' + id).textContent = text; }
+function setText(id, text) { document.getElementById('text-'+id).textContent = text; }
 function escapeHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function highlightWinner(id) {
   ['gpt','gemini','claude'].forEach(m => {
-    document.getElementById('card-' + m).classList.remove('winner');
-    const b = document.getElementById('card-' + m).querySelector('.winner-badge');
+    document.getElementById('card-'+m).classList.remove('winner');
+    const b = document.getElementById('card-'+m).querySelector('.winner-badge');
     if (b) b.remove();
   });
-  const card = document.getElementById('card-' + id);
+  const card = document.getElementById('card-'+id);
   if (!card) return;
   card.classList.add('winner');
   const badge = document.createElement('span');
@@ -539,46 +571,51 @@ function highlightWinner(id) {
   badge.textContent = 'Ganador';
   card.querySelector('.result-card-header').appendChild(badge);
 }
+
 async function buildSystemPrompt(basePrompt) {
-  return basePrompt + getProfileContext() + getDocsContext() + await getRecentHistoryContext();
+  const convCtx    = buildConversationContext(currentThread);
+  const profileCtx = getProfileContext();
+  const docsCtx    = getDocsContext();
+  return basePrompt + profileCtx + docsCtx + convCtx;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function runArena() {
   const question = document.getElementById('user-question').value.trim();
   if (!question) { alert('Escribe una pregunta primero.'); return; }
-  const modelsToRun = Object.entries(activeModels).filter(([,v]) => v).map(([k]) => k);
+  const modelsToRun = Object.entries(activeModels).filter(([,v])=>v).map(([k])=>k);
   if (modelsToRun.length < 2) { alert('Activa al menos 2 modelos.'); return; }
 
   const btn = document.getElementById('send-btn');
   btn.disabled    = true;
-  btn.textContent = 'Consultando...';
+  btn.textContent = currentThread.length > 0 ? 'Continuando...' : 'Consultando...';
   document.getElementById('results').classList.remove('hidden');
   document.getElementById('progress-bar').classList.remove('hidden');
   document.getElementById('detect-reason').classList.add('hidden');
   setProgress(5);
 
   ['gpt','gemini','claude'].forEach(m => {
-    const card = document.getElementById('card-' + m);
+    const card = document.getElementById('card-'+m);
     card.classList.remove('winner');
     card.classList.toggle('model-disabled', !activeModels[m]);
     const b = card.querySelector('.winner-badge');
     if (b) b.remove();
-    if (activeModels[m]) { setStatus(m, '', 'Consultando...'); setText(m, '—'); }
-    else { setStatus(m, 'skipped', 'No usado'); setText(m, 'Modelo no seleccionado.'); }
+    if (activeModels[m]) { setStatus(m,'','Consultando...'); setText(m,'—'); }
+    else { setStatus(m,'skipped','No usado'); setText(m,'Modelo no seleccionado.'); }
   });
   document.getElementById('arbiter-text').textContent = 'Esperando respuestas...';
 
+  const def = 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
   const [sysGPT, sysGemini, sysClaude] = await Promise.all([
-    buildSystemPrompt(localStorage.getItem('llm-sys-gpt')    || 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.'),
-    buildSystemPrompt(localStorage.getItem('llm-sys-gemini') || 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.'),
-    buildSystemPrompt(localStorage.getItem('llm-sys-claude') || 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.')
+    buildSystemPrompt(localStorage.getItem('llm-sys-gpt')    || def),
+    buildSystemPrompt(localStorage.getItem('llm-sys-gemini') || def),
+    buildSystemPrompt(localStorage.getItem('llm-sys-claude') || def)
   ]);
   setProgress(12);
 
-  const results = { gpt: null, gemini: null, claude: null };
+  const results = { gpt:null, gemini:null, claude:null };
+  const fd      = currentFileData;
   const tasks   = [];
-  const fd      = currentFileData; // snapshot of current file
 
   if (activeModels.gpt)
     tasks.push(callProxy({ model:'gpt', systemPrompt:sysGPT, userMsg:question, fileData:fd })
@@ -586,7 +623,7 @@ async function runArena() {
       .catch(e => { setText('gpt','Error: '+e.message); setStatus('gpt','error','Error'); }));
 
   if (activeModels.gemini)
-    tasks.push(callProxy({ model:'gemini', systemPrompt:sysGemini, userMsg:question, fileData: fd?.text ? {text:fd.text} : null })
+    tasks.push(callProxy({ model:'gemini', systemPrompt:sysGemini, userMsg:question, fileData:fd?.text?{text:fd.text}:null })
       .then(d => { results.gemini=d.result; setText('gemini',d.result); setStatus('gemini','done','Listo'); setProgress(60); })
       .catch(e => { setText('gemini','Error: '+e.message); setStatus('gemini','error','Error'); }));
 
@@ -609,26 +646,32 @@ async function runArena() {
       const d = await callProxy({ action:'arbiter', question, responses:results });
       arbiterText = d.result;
       document.getElementById('arbiter-text').textContent = arbiterText;
-      const match = arbiterText.match(/Ganador:\s*(ChatGPT|Gemini|Claude)/i);
-      if (match) {
-        const name = match[1].toLowerCase();
-        if (name === 'chatgpt') highlightWinner('gpt');
-        else highlightWinner(name);
-      }
+      const winner = extractWinnerModel(arbiterText);
+      if (winner) highlightWinner(winner);
     } catch(e) {
-      arbiterText = 'Error del árbitro: ' + e.message;
+      arbiterText = 'Error del árbitro: '+e.message;
       document.getElementById('arbiter-text').textContent = arbiterText;
     }
   }
 
-  await saveToHistory(question, results, arbiterText, modelsToRun, fd?.name || null);
+  await saveThread(question, results, arbiterText, modelsToRun, fd?.name||null);
+
+  // Show thread banner if continuing
+  const banner = document.getElementById('thread-banner');
+  if (currentThread.length > 1) {
+    banner.classList.remove('hidden');
+    banner.textContent = `💬 Conversación de ${currentThread.length} turnos`;
+  }
+
   setProgress(100);
   btn.disabled    = false;
   btn.textContent = 'Consultar los modelos ↗';
+  document.getElementById('user-question').value = '';
+  document.getElementById('user-question').focus();
 }
 window.runArena = runArena;
 
-// Auto-detect on question input
+// Auto-detect
 let detectTimer = null;
 document.addEventListener('DOMContentLoaded', () => {
   const q = document.getElementById('user-question');

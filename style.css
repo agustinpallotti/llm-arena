@@ -710,3 +710,27 @@ body {
 }
 .file-action-btn:hover { background: var(--bg); color: var(--text); }
 .file-delete:hover { color: var(--danger); border-color: var(--danger); }
+
+/* ── Thread Banner ── */
+.thread-banner {
+  background: #EEF2FF;
+  border-bottom: 1px solid #C7D2FE;
+  padding: 8px 1.5rem;
+  font-size: 13px;
+  color: #4338CA;
+}
+@media (prefers-color-scheme: dark) {
+  .thread-banner { background: #1e1b4b; border-color: #3730a3; color: #a5b4fc; }
+}
+
+/* ── Thread count chip ── */
+.thread-count {
+  font-size: 10px;
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
