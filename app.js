@@ -21,6 +21,16 @@ const provider      = new GoogleAuthProvider();
 
 let SESSION_TOKEN   = sessionStorage.getItem('llm-arena-token') || null;
 
+// ── Default voice ─────────────────────────────────────────────────────────────
+const DEFAULT_VOICE = `INSTRUCCIONES DE VOZ (obligatorias, siempre):
+- Responde de forma directa y concisa. Ve al punto inmediatamente.
+- Tutea siempre al usuario. Nunca uses "usted".
+- Usa el mismo idioma en que te escriban.
+- Nunca empieces con "¡Claro!", "Por supuesto", "Entendido", "Excelente" ni frases similares.
+- Sin introducciones innecesarias. Sin frases de relleno.
+- Habla como un colega experto, no como un asistente servicial.
+- Si la respuesta es corta, que sea corta. No la inflés.`;
+
 // Listen for auth state
 onAuthStateChanged(auth, async (user) => {
   if (user && !user.isAnonymous) {
@@ -627,6 +637,7 @@ async function saveProfile() {
     context: document.getElementById('profile-context').value,
     style:   document.getElementById('profile-style').value,
     topics:  document.getElementById('profile-topics').value,
+    voice:   document.getElementById('profile-voice').value,
   };
   await setDoc(doc(db,'user','profile'), profile);
   const saved = document.getElementById('profile-saved');
@@ -663,6 +674,12 @@ function getProfileContext() {
   if (topics)  text+=`Temas de interés: ${topics}\n`;
   return text+'--- FIN CONTEXTO ---\n';
 }
+function getVoicePrompt() {
+  const custom = document.getElementById('profile-voice')?.value?.trim();
+  if (custom) return '\n\n--- VOZ Y ESTILO (obligatorio) ---\n' + custom + '\n--- FIN VOZ ---\n';
+  return '\n\n--- VOZ Y ESTILO (obligatorio) ---\n' + DEFAULT_VOICE + '\n--- FIN VOZ ---\n';
+}
+
 window.saveProfile=saveProfile;
 
 // ── Documents ─────────────────────────────────────────────────────────────────
@@ -731,7 +748,7 @@ function updateMemoryBanner() {
 function setProgress(pct) { document.getElementById('progress-fill').style.width=pct+'%'; }
 function escapeHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 async function buildSystemPrompt(basePrompt) {
-  return basePrompt + getProfileContext() + getAutoProfileContext() + getDocsContext() + buildConversationContext(currentThread);
+  return basePrompt + getVoicePrompt() + getProfileContext() + getAutoProfileContext() + getDocsContext() + buildConversationContext(currentThread);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
