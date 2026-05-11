@@ -22,6 +22,9 @@ let SESSION_TOKEN   = sessionStorage.getItem('llm-arena-token') || null;
 let currentThreadId = null;
 let currentThread   = [];
 let currentFileData = null;
+let modelStats      = {};   // { gpt: { byCategory: { code: {success:3, fallback:1} } } }
+let queryCount      = 0;    // track when to run style analysis
+let lastCategory    = null; // category Lupa detected for current query
 let lastResults     = {};  // stores all 3 results after asking others
 let chosenModel     = null; // model Lupa chose
 
@@ -46,10 +49,94 @@ async function checkLogin() {
     document.getElementById('login-error').classList.remove('hidden');
   }
 }
+// ── Learning System ───────────────────────────────────────────────────────────
+async function loadModelStats() {
+  try {
+    const snap = await getDoc(doc(db, 'user', 'modelStats'));
+    if (snap.exists()) modelStats = snap.data() || {};
+  } catch(e) { console.error(e); }
+}
+
+async function saveModelStats() {
+  try {
+    await setDoc(doc(db, 'user', 'modelStats'), modelStats);
+  } catch(e) { console.error(e); }
+}
+
+function recordModelSuccess(model, category) {
+  if (!model || !category) return;
+  if (!modelStats[model]) modelStats[model] = { byCategory: {} };
+  if (!modelStats[model].byCategory) modelStats[model].byCategory = {};
+  if (!modelStats[model].byCategory[category]) modelStats[model].byCategory[category] = { success: 0, fallback: 0 };
+  modelStats[model].byCategory[category].success++;
+  saveModelStats();
+}
+
+function recordModelFallback(model, category) {
+  // Called when user asks for "other opinions" — signal chosen model wasn't enough
+  if (!model || !category) return;
+  if (!modelStats[model]) modelStats[model] = { byCategory: {} };
+  if (!modelStats[model].byCategory) modelStats[model].byCategory = {};
+  if (!modelStats[model].byCategory[category]) modelStats[model].byCategory[category] = { success: 0, fallback: 0 };
+  modelStats[model].byCategory[category].fallback++;
+  saveModelStats();
+}
+
+async function maybeAnalyzeStyle() {
+  // Run style analysis every 10 queries silently
+  queryCount++;
+  if (queryCount % 10 !== 0) return;
+  try {
+    const q    = query(collection(db, 'threads'), orderBy('updatedAt', 'desc'));
+    const snap = await getDocs(q);
+    const questions = [];
+    snap.forEach(d => {
+      const turns = d.data().turns || [];
+      turns.forEach(t => { if (t.question) questions.push(t.question); });
+    });
+    if (questions.length < 5) return;
+    const recent = questions.slice(0, 20);
+    const data   = await callProxy({ action: 'analyze-style', recentQuestions: recent });
+    if (!data) return;
+    // Silently update profile auto-fields in Firebase
+    const snap2 = await getDoc(doc(db, 'user', 'profile'));
+    const existing = snap2.exists() ? snap2.data() : {};
+    await setDoc(doc(db, 'user', 'profile'), {
+      ...existing,
+      autoTopics: data.topics || '',
+      autoStyle:  data.style  || '',
+      autoInterests: (data.interests || []).join(', '),
+      autoUpdatedAt: new Date()
+    });
+  } catch(e) { console.error('Style analysis error:', e); }
+}
+
+function getAutoProfileContext() {
+  // This will be loaded from Firebase on startup
+  return window._autoProfile || '';
+}
+
+async function loadAutoProfile() {
+  try {
+    const snap = await getDoc(doc(db, 'user', 'profile'));
+    if (snap.exists()) {
+      const p = snap.data();
+      if (p.autoTopics || p.autoStyle) {
+        window._autoProfile = '\n\n--- PERFIL APRENDIDO AUTOMÁTICAMENTE ---\n' +
+          (p.autoTopics ? `Temas frecuentes del usuario: ${p.autoTopics}\n` : '') +
+          (p.autoStyle  ? `Estilo detectado: ${p.autoStyle}\n` : '') +
+          (p.autoInterests ? `Intereses detectados: ${p.autoInterests}\n` : '') +
+          '--- FIN PERFIL AUTO ---\n';
+      }
+    }
+  } catch(e) { console.error(e); }
+}
+
 function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   loadSettings(); loadHistory(); loadProfile(); loadDocuments(); loadStoredFiles();
+  loadModelStats(); loadAutoProfile();
 }
 window.checkLogin = checkLogin;
 window.addEventListener('DOMContentLoaded', () => { if (SESSION_TOKEN) showApp(); });
@@ -105,9 +192,9 @@ function otherModels(chosen) {
 
 // ── Lupa: decide which model to use ──────────────────────────────────────────
 async function lupaDecide(question) {
-  const data = await callProxy({ action:'detect', question });
-  // Pick the first recommended model as the primary
+  const data = await callProxy({ action:'detect', question, modelStats });
   const primary = data.models[0] || 'claude';
+  lastCategory  = data.category || 'general';
   return primary;
 }
 
@@ -233,6 +320,8 @@ function setPrimaryCard(model, text, statusType, statusLabel) {
 window.askOthers = async function() {
   const question = currentThread.length ? currentThread[currentThread.length-1].question : document.getElementById('user-question').value.trim();
   if (!question) return;
+  // Signal: user wasn't satisfied with primary model
+  if (chosenModel && lastCategory) recordModelFallback(chosenModel, lastCategory);
 
   const btn = document.getElementById('ask-others-btn');
   btn.disabled    = true;
@@ -545,7 +634,7 @@ function updateMemoryBanner() {
 function setProgress(pct) { document.getElementById('progress-fill').style.width=pct+'%'; }
 function escapeHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 async function buildSystemPrompt(basePrompt) {
-  return basePrompt + getProfileContext() + getDocsContext() + buildConversationContext(currentThread);
+  return basePrompt + getProfileContext() + getAutoProfileContext() + getDocsContext() + buildConversationContext(currentThread);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -604,6 +693,12 @@ async function runArena() {
   // Save thread
   await saveThread(question, lastResults, primary, [primary], fd?.name||null);
   setProgress(100);
+
+  // Record success (user didn't immediately ask for others = good signal)
+  setTimeout(() => {
+    if (chosenModel && lastCategory) recordModelSuccess(chosenModel, lastCategory);
+    maybeAnalyzeStyle();
+  }, 8000); // wait 8s — if they ask for others within this time we cancel
 
   btn.disabled=false;
   btn.textContent='Preguntar ↗';
