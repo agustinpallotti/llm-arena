@@ -16,7 +16,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db      = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 const auth    = getAuth(firebaseApp);
-const ALLOWED_EMAIL = null; // set to your email to restrict, or null to allow any Google account
+const ALLOWED_EMAIL = 'agustin@agustinpallotti.com'; // set to your email to restrict, or null to allow any Google account
 const provider      = new GoogleAuthProvider();
 
 let SESSION_TOKEN   = sessionStorage.getItem('llm-arena-token') || null;
@@ -33,7 +33,7 @@ const DEFAULT_VOICE = `INSTRUCCIONES DE VOZ (obligatorias, siempre):
 
 // Listen for auth state
 onAuthStateChanged(auth, async (user) => {
-  if (user && !user.isAnonymous) {
+   if (user && !user.isAnonymous && user.email === ALLOWED_EMAIL) {
     // Verified Google user
     SESSION_TOKEN = await user.getIdToken();
     sessionStorage.setItem('llm-arena-token', SESSION_TOKEN);
@@ -54,27 +54,6 @@ let lastCategory    = null; // category Lupa detected for current query
 let lastResults     = {};  // stores all 3 results after asking others
 let chosenModel     = null; // model Lupa chose
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
-async function checkLogin() {
-  const password = document.getElementById('login-input').value;
-  if (!password) return;
-  try {
-    const res  = await fetch('/api/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
-    const data = await res.json();
-    if (data.ok && data.token) {
-      SESSION_TOKEN = data.token;
-      sessionStorage.setItem('llm-arena-token', data.token);
-      showApp();
-    } else {
-      document.getElementById('login-error').classList.remove('hidden');
-      document.getElementById('login-input').value = '';
-      document.getElementById('login-input').focus();
-    }
-  } catch {
-    document.getElementById('login-error').textContent = 'Error de conexión.';
-    document.getElementById('login-error').classList.remove('hidden');
-  }
-}
 // ── Learning System ───────────────────────────────────────────────────────────
 async function loadModelStats() {
   try {
