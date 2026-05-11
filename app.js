@@ -838,3 +838,29 @@ async function runArena() {
   }
 }
 window.runArena=runArena;
+
+// ── Quick Actions ─────────────────────────────────────────────────────────────
+window.toggleQuickActions = function() {
+  const menu = document.getElementById('quick-actions-menu');
+  menu.classList.toggle('hidden');
+  if (!menu.classList.contains('hidden')) {
+    setTimeout(() => {
+      document.addEventListener('click', function closeQA(e) {
+        const wrap = document.querySelector('.quick-actions-wrap');
+        if (wrap && !wrap.contains(e.target)) {
+          menu.classList.add('hidden');
+        }
+        document.removeEventListener('click', closeQA);
+      });
+    }, 50);
+  }
+};
+
+window.applyQuickAction = function(prefix) {
+  const textarea = document.getElementById('user-question');
+  const current  = textarea.value.trim();
+  textarea.value  = current ? prefix + '\n\n' + current : prefix + '\n\n';
+  document.getElementById('quick-actions-menu').classList.add('hidden');
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+};
