@@ -267,6 +267,17 @@ module.exports = async function handler(req, res) {
     if (!question) return res.status(400).json({ error: 'Missing question' });
     try {
       const modelStats = req.body.modelStats || {};
+      const hasImage   = req.body.hasImage   || false;
+
+      // If there is an image, force vision-capable models only (not Gemini)
+      if (hasImage) {
+        return res.status(200).json({
+          models:   ['claude', 'gpt', 'gemini'],
+          reason:   'Imagen detectada — usando modelo con visión',
+          category: 'imagen'
+        });
+      }
+
       return res.status(200).json(await detectModelsWithLearning(question, modelStats));
     }
     catch(e) { return res.status(500).json({ error: e.message }); }
