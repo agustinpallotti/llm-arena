@@ -269,8 +269,8 @@ body {
 
 /* Banners */
 .memory-banner {
-  background: var(--winner-bg); border-bottom: 1px solid var(--winner-border);
-  padding: 6px 1.5rem; font-size: 12px; color: var(--winner);
+  background: var(--winner-bg); border-bottom: 1px solid rgba(24,165,114,0.25);
+  padding: 5px 2rem; font-size: 12px; color: var(--winner);
   display: flex; align-items: center; gap: 6px;
 }
 .thread-banner {
@@ -323,17 +323,18 @@ body {
 }
 .question-input {
   width: 100%; background: transparent; border: none; outline: none;
-  padding: 14px 16px 4px;
+  padding: 14px 16px 8px;
   font-size: 15px; color: var(--text); font-family: var(--font);
-  resize: none; line-height: 1.6;
+  resize: none; line-height: 1.6; min-height: 80px;
 }
 .question-input::placeholder { color: var(--muted); }
 
 /* Input action bar */
 .input-actions {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 10px 8px;
+  padding: 4px 8px 8px;
 }
+.input-actions-left { display: flex; align-items: center; gap: 4px; }
 .attach-btn {
   display: flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: 8px;
