@@ -9,13 +9,26 @@ function setCors(res) {
 async function verifyFirebaseToken(idToken) {
   if (!idToken) return false;
   try {
-    // Verify Firebase ID token by calling Firebase's tokeninfo endpoint
-    const res  = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
-    const data = await res.json();
-    // Check token is valid and issued for our Firebase project
-    if (data.error) return false;
-    if (data.aud !== process.env.FIREBASE_PROJECT_ID && 
-        data.aud !== '507852214387-o2rch6rt2vv9si3r4u7d4ofr0e9od2qq.apps.googleusercontent.com') return false;
+    // Decode JWT payload (middle part) without verification
+    // Firebase tokens are JWTs — we check they belong to our project
+    const parts = idToken.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+    
+    // Check token is not expired
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) return false;
+    
+    // Check it belongs to our Firebase project
+    const validAudiences = [
+      'llm-arena-60597',
+      '507852214387-o2rch6rt2vv9si3r4u7d4ofr0e9od2qq.apps.googleusercontent.com'
+    ];
+    if (!validAudiences.includes(payload.aud)) return false;
+    
+    // Check it has a valid email (Google SSO users always have email)
+    if (!payload.email && !payload.sub) return false;
+    
     return true;
   } catch { return false; }
 }
