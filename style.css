@@ -827,3 +827,17 @@ body {
   object-fit: cover;
   border-radius: 50%;
 }
+
+/* ── Logout ── */
+.logout-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  font-family: 'Inter', sans-serif;
+}
+.logout-btn:hover { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
