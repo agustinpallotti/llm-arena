@@ -6,15 +6,17 @@ function setCors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token');
 }
 
-function verifyToken(token) {
-  if (!token) return false;
-  const secret = process.env.APP_SECRET;
-  if (!secret) return false;
-  const expected = crypto.createHmac('sha256', secret).update('llm-arena-session').digest('hex');
+async function verifyFirebaseToken(idToken) {
+  if (!idToken) return false;
   try {
-    const a = Buffer.from(token.padEnd(128));
-    const b = Buffer.from(expected.padEnd(128));
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
+    // Verify Firebase ID token by calling Firebase's tokeninfo endpoint
+    const res  = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+    const data = await res.json();
+    // Check token is valid and issued for our Firebase project
+    if (data.error) return false;
+    if (data.aud !== process.env.FIREBASE_PROJECT_ID && 
+        data.aud !== '507852214387-o2rch6rt2vv9si3r4u7d4ofr0e9od2qq.apps.googleusercontent.com') return false;
+    return true;
   } catch { return false; }
 }
 
@@ -259,7 +261,8 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const token = req.headers['x-session-token'];
-  if (!verifyToken(token)) return res.status(401).json({ error: 'Unauthorized' });
+  const valid  = await verifyFirebaseToken(token);
+  if (!valid) return res.status(401).json({ error: 'Unauthorized' });
 
   const { action, model, systemPrompt, userMsg, responses, question, fileData } = req.body;
 
