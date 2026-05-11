@@ -443,3 +443,34 @@ body {
   .results { padding: 1rem; }
   .results-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Quick Actions ── */
+.quick-actions-wrap { position: relative; }
+
+.quick-actions-trigger {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  background: none; border: none;
+  color: var(--muted); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.quick-actions-trigger:hover { background: var(--surface2); color: var(--text2); }
+
+.quick-actions-menu {
+  position: absolute; bottom: calc(100% + 8px); left: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 5px;
+  min-width: 190px; z-index: 50;
+  box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+.quick-action-item {
+  background: none; border: none; border-radius: var(--radius-xs);
+  padding: 8px 10px; text-align: left;
+  font-size: 13px; color: var(--text2);
+  cursor: pointer; font-family: var(--font);
+  transition: background 0.12s;
+  display: flex; align-items: center; gap: 8px;
+}
+.quick-action-item:hover { background: var(--surface2); color: var(--text); }
