@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query, updateDoc, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -92,7 +92,7 @@ async function maybeAnalyzeStyle() {
   queryCount++;
   if (queryCount % 10 !== 0) return;
   try {
-    const q    = query(collection(db, 'threads'), orderBy('updatedAt', 'desc'));
+    const q    = query(collection(db, 'threads'), orderBy('updatedAt', 'desc'), limit(40));
     const snap = await getDocs(q);
     const questions = [];
     snap.forEach(d => {
@@ -143,7 +143,9 @@ function showApp() {
   loadSettings(); loadHistory(); loadProfile(); loadDocuments(); loadStoredFiles();
   loadModelStats(); loadAutoProfile();
   updateGreeting();
-  setInterval(updateGreeting, 60000);
+  if (!window._greetingInterval) {
+    window._greetingInterval = setInterval(updateGreeting, 60000);
+  }
 }
 // ── Google SSO ────────────────────────────────────────────────────────────────
 async function signInWithGoogle() {
@@ -336,7 +338,7 @@ async function saveThread(question, results, chosenModel, modelsUsed, fileName) 
 
 async function loadHistory() {
   try {
-    const q    = query(collection(db, 'threads'), orderBy('updatedAt', 'desc'));
+    const q    = query(collection(db, 'threads'), orderBy('updatedAt', 'desc'), limit(40));
     const snap = await getDocs(q);
     const list  = document.getElementById('history-list');
     const empty = document.getElementById('history-empty');
@@ -858,7 +860,8 @@ async function runArena() {
   if (!question) { alert('Escribe una pregunta primero.'); return; }
 
   const btn = document.getElementById('send-btn');
-  btn.disabled=true; btn.textContent='Lupa está pensando...';
+  btn.disabled=true;
+  btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="opacity:0.4"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
 
   document.getElementById('results').classList.remove('hidden');
   document.getElementById('progress-bar').classList.remove('hidden');
@@ -916,7 +919,7 @@ async function runArena() {
   }, 8000); // wait 8s — if they ask for others within this time we cancel
 
   btn.disabled=false;
-  btn.textContent='Preguntar ↗';
+  btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
   document.getElementById('user-question').value='';
   document.getElementById('user-question').focus();
 
