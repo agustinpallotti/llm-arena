@@ -192,9 +192,10 @@ function otherModels(chosen) {
 
 // ── Lupa: decide which model to use ──────────────────────────────────────────
 async function lupaDecide(question) {
-  const data = await callProxy({ action:'detect', question, modelStats });
-  const primary = data.models[0] || 'claude';
-  lastCategory  = data.category || 'general';
+  const hasImage = !!(currentFileData && currentFileData.type === 'image');
+  const data     = await callProxy({ action:'detect', question, modelStats, hasImage });
+  const primary  = data.models[0] || 'claude';
+  lastCategory   = data.category || 'general';
   return primary;
 }
 
