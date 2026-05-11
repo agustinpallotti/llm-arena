@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -16,9 +16,25 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db      = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 const auth    = getAuth(firebaseApp);
-signInAnonymously(auth).catch(e => console.error('Firebase auth error:', e));
+const ALLOWED_EMAIL = null; // set to your email to restrict, or null to allow any Google account
+const provider      = new GoogleAuthProvider();
 
 let SESSION_TOKEN   = sessionStorage.getItem('llm-arena-token') || null;
+
+// Listen for auth state
+onAuthStateChanged(auth, async (user) => {
+  if (user && !user.isAnonymous) {
+    // Verified Google user
+    SESSION_TOKEN = await user.getIdToken();
+    sessionStorage.setItem('llm-arena-token', SESSION_TOKEN);
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    // Show user avatar in sidebar
+    updateUserBadge(user);
+    loadSettings(); loadHistory(); loadProfile(); loadDocuments(); loadStoredFiles();
+    loadModelStats(); loadAutoProfile();
+  }
+});
 let currentThreadId = null;
 let currentThread   = [];
 let currentFileData = null;
