@@ -160,6 +160,100 @@ El orden importa: el PRIMERO es quien responderá.`;
   }
 }
 
+// ── Learning: analyze user style ─────────────────────────────────────────────
+async function analyzeUserStyle(recentQuestions) {
+  const prompt = `Analiza estas preguntas recientes de un usuario y extrae un perfil de estilo conciso.
+
+Preguntas recientes:
+${recentQuestions.map((q,i) => `${i+1}. "${q}"`).join('\n')}
+
+Responde SOLO con JSON válido:
+{
+  "topics": "temas principales detectados en 1 línea",
+  "style": "estilo de comunicación en 1 línea (ej: directo, técnico, analítico)",
+  "interests": ["tema1", "tema2", "tema3"]
+}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(JSON.stringify(data.error));
+  const text = data.content.map(b => b.text||'').join('');
+  try { return JSON.parse(text.replace(/```json|```/g,'').trim()); }
+  catch { return null; }
+}
+
+// ── Smart model selection using learned preferences ───────────────────────────
+async function detectModelsWithLearning(question, modelStats) {
+  // Build learned preferences context
+  let learnedCtx = '';
+  if (modelStats && Object.keys(modelStats).length > 0) {
+    learnedCtx = '\n\nHistorial de preferencias del usuario (úsalo para decidir mejor):\n';
+    for (const [model, stats] of Object.entries(modelStats)) {
+      const modelName = model === 'gpt' ? 'ChatGPT' : model === 'gemini' ? 'Gemini' : 'Claude';
+      if (stats.byCategory) {
+        for (const [cat, data] of Object.entries(stats.byCategory)) {
+          const total   = (data.success||0) + (data.fallback||0);
+          const succPct = total > 0 ? Math.round((data.success||0)/total*100) : 0;
+          if (total >= 2) learnedCtx += `- ${modelName} en "${cat}": ${succPct}% satisfacción (${total} usos)\n`;
+        }
+      }
+    }
+  }
+
+  const prompt = `Eres un selector imparcial de modelos de IA. Decide qué modelo es el MÁS ADECUADO para esta pregunta.
+
+Pregunta: "${question}"
+${learnedCtx}
+Modelos disponibles:
+- gpt: ChatGPT GPT-4o-mini — código, matemáticas, instrucciones paso a paso, programación
+- gemini: Google Gemini 2.5 Flash — información reciente, noticias, eventos actuales, datos en tiempo real
+- claude: Anthropic Claude — redacción, análisis profundo, razonamiento, síntesis, humanidades
+
+Reglas:
+1. Usa el historial de preferencias si existe para este tipo de pregunta
+2. Para preguntas generales → claude primero
+3. Para código/matemáticas → gpt primero
+4. Para noticias/datos recientes → gemini primero
+5. Clasifica la pregunta en una categoría simple (código, análisis, redacción, noticias, general, matemáticas, etc.)
+
+Responde SOLO con JSON:
+{"models": ["claude", "gpt", "gemini"], "reason": "razón breve", "category": "categoría detectada"}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(JSON.stringify(data.error));
+  try {
+    const text = data.content.map(b => b.text||'').join('');
+    return JSON.parse(text.replace(/```json|```/g,'').trim());
+  } catch {
+    return { models: ['claude','gpt','gemini'], reason: 'Selección por defecto', category: 'general' };
+  }
+}
+
 module.exports = async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -171,7 +265,17 @@ module.exports = async function handler(req, res) {
 
   if (action === 'detect') {
     if (!question) return res.status(400).json({ error: 'Missing question' });
-    try { return res.status(200).json(await detectModels(question)); }
+    try {
+      const modelStats = req.body.modelStats || {};
+      return res.status(200).json(await detectModelsWithLearning(question, modelStats));
+    }
+    catch(e) { return res.status(500).json({ error: e.message }); }
+  }
+
+  if (action === 'analyze-style') {
+    const { recentQuestions } = req.body;
+    if (!recentQuestions || !recentQuestions.length) return res.status(400).json({ error: 'Missing questions' });
+    try { return res.status(200).json(await analyzeUserStyle(recentQuestions)); }
     catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
