@@ -274,7 +274,77 @@ function loadSettings() {
   document.getElementById('sys-gemini').value = localStorage.getItem('llm-sys-gemini') || def;
   document.getElementById('sys-claude').value = localStorage.getItem('llm-sys-claude') || def;
 }
-function toggleSettings() { document.getElementById('settings-panel').classList.toggle('hidden'); }
+function toggleSettings() {
+  const panel = document.getElementById('settings-panel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) renderDashboard();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  renderModelStats();
+  renderTopics();
+}
+
+function renderModelStats() {
+  const el = document.getElementById('dash-models');
+  if (!el) return;
+
+  const entries = [];
+  for (const [model, data] of Object.entries(modelStats)) {
+    if (!data.byCategory) continue;
+    for (const [cat, stats] of Object.entries(data.byCategory)) {
+      const total   = (stats.success || 0) + (stats.fallback || 0);
+      const pct     = total > 0 ? Math.round((stats.success || 0) / total * 100) : 0;
+      entries.push({ model, cat, total, pct });
+    }
+  }
+
+  if (!entries.length) {
+    el.innerHTML = '<p class="dash-empty">Aún no hay suficientes datos. Sigue usando Lupa.</p>';
+    return;
+  }
+
+  // Group by category, pick best model per category
+  const byCategory = {};
+  entries.forEach(e => {
+    if (!byCategory[e.cat] || e.pct > byCategory[e.cat].pct) {
+      byCategory[e.cat] = e;
+    }
+  });
+
+  const modelColors = { gpt: '#10a37f', gemini: '#4285F4', claude: '#c9824a' };
+  const modelNames  = { gpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude' };
+
+  el.innerHTML = Object.entries(byCategory).map(([cat, e]) => `
+    <div class="dash-row">
+      <span class="dash-cat">${cat}</span>
+      <div class="dash-bar-wrap">
+        <div class="dash-bar" style="width:${e.pct}%;background:${modelColors[e.model]||'#888'}"></div>
+      </div>
+      <span class="dash-model-label" style="color:${modelColors[e.model]||'#888'}">${modelNames[e.model]||e.model} ${e.pct}%</span>
+    </div>
+  `).join('');
+}
+
+function renderTopics() {
+  const el = document.getElementById('dash-topics');
+  if (!el) return;
+
+  const autoProfile = window._autoProfile || '';
+  const topics = document.getElementById('profile-topics')?.value?.trim();
+  const autoTopics = autoProfile.match(/Temas frecuentes[^:]*: ([^\n]+)/)?.[1] || '';
+  const autoInterests = autoProfile.match(/Intereses detectados: ([^\n]+)/)?.[1] || '';
+
+  const all = [topics, autoTopics, autoInterests].filter(Boolean).join(', ');
+  if (!all) {
+    el.innerHTML = '<p class="dash-empty">Aún no hay datos. Lupa analiza tus temas cada 10 consultas.</p>';
+    return;
+  }
+
+  const chips = [...new Set(all.split(/[,،]+/).map(t => t.trim()).filter(t => t.length > 1))];
+  el.innerHTML = chips.map(t => `<span class="dash-chip">${t}</span>`).join('');
+}
 window.saveSettings   = saveSettings;
 window.toggleSettings = toggleSettings;
 

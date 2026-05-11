@@ -135,20 +135,29 @@
       <!-- Settings Panel -->
       <div class="settings-panel hidden" id="settings-panel">
         <div class="settings-inner">
-          <h2 class="settings-title">Configuración</h2>
-          <div class="setting-group">
-            <label class="setting-label">OpenAI API Key</label>
-            <input type="password" id="openai-key" class="setting-input mono" placeholder="sk-proj-..." />
+
+          <!-- Dashboard -->
+          <div class="dashboard-section">
+            <h2 class="settings-title">Tu uso de Lupa</h2>
+            <div class="dashboard-grid">
+              <div class="dash-card">
+                <p class="dash-card-title">Modelo favorito por categoría</p>
+                <div id="dash-models" class="dash-content">
+                  <p class="dash-empty">Aún no hay suficientes datos. Sigue usando Lupa.</p>
+                </div>
+              </div>
+              <div class="dash-card">
+                <p class="dash-card-title">Tus temas frecuentes</p>
+                <div id="dash-topics" class="dash-content">
+                  <p class="dash-empty">Aún no hay datos de temas.</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="setting-group">
-            <label class="setting-label">Google Gemini API Key</label>
-            <input type="password" id="gemini-key" class="setting-input mono" placeholder="AIzaSy..." />
-          </div>
-          <div class="setting-group">
-            <label class="setting-label">Anthropic Claude API Key</label>
-            <input type="password" id="claude-key" class="setting-input mono" placeholder="sk-ant-..." />
-          </div>
+
           <hr class="setting-divider" />
+
+          <h2 class="settings-title">Configuración</h2>
           <p class="setting-label">Prompts por modelo</p>
           <div class="prompts-grid">
             <div class="prompt-field">
