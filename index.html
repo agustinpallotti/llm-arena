@@ -208,12 +208,26 @@
                     <button class="quick-action-item" onclick="applyQuickAction('Analiza los pros y contras de lo siguiente:')">⚖️ Pros y contras</button>
                   </div>
                 </div>
+                <!-- Mic -->
+                <button class="attach-btn mic-btn" id="mic-btn" onclick="toggleVoiceInput()" title="Dictar">
+                  <svg id="mic-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                </button>
                 <!-- Attach -->
                 <label class="attach-btn" for="file-input" title="Adjuntar archivo">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 </label>
                 <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.txt,.md,.doc,.docx,.xls,.xlsx,image/*" onchange="handleFileSelect(event)" />
               </div>
+              <!-- Stop speaking button -->
+              <button class="stop-speaking-btn hidden" id="stop-speaking-btn" onclick="stopSpeaking()" title="Detener lectura">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                Detener
+              </button>
               <button class="send-btn" id="send-btn" onclick="runArena()" title="Enviar">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
               </button>

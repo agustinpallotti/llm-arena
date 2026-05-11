@@ -763,6 +763,116 @@ async function buildSystemPrompt(basePrompt) {
   return basePrompt + getVoicePrompt() + getProfileContext() + getAutoProfileContext() + getDocsContext() + buildConversationContext(currentThread);
 }
 
+
+// ── Voice Input & Output ──────────────────────────────────────────────────────
+let recognition    = null;
+let isListening    = false;
+let isSpeaking     = false;
+let synth          = window.speechSynthesis;
+
+function initRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r          = new SR();
+  r.lang           = 'es-MX';
+  r.continuous     = false;
+  r.interimResults = true;
+
+  r.onstart = () => {
+    isListening = true;
+    document.getElementById('mic-btn').classList.add('mic-active');
+    document.getElementById('user-question').placeholder = 'Escuchando...';
+  };
+
+  r.onresult = (e) => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+    document.getElementById('user-question').value = transcript;
+    if (e.results[e.results.length - 1].isFinal) stopListening();
+  };
+
+  r.onerror = (e) => {
+    console.error('Speech error:', e.error);
+    stopListening();
+  };
+
+  r.onend = () => stopListening();
+  return r;
+}
+
+function stopListening() {
+  isListening = false;
+  const btn = document.getElementById('mic-btn');
+  if (btn) btn.classList.remove('mic-active');
+  const q = document.getElementById('user-question');
+  if (q) q.placeholder = 'Pregúntale a Lupa...';
+  if (recognition) recognition.stop();
+}
+
+window.toggleVoiceInput = function() {
+  // Stop speaking if active
+  if (isSpeaking) { stopSpeaking(); return; }
+
+  if (isListening) {
+    stopListening();
+    return;
+  }
+
+  recognition = initRecognition();
+  if (!recognition) {
+    alert('Tu navegador no soporta reconocimiento de voz. Usa Chrome o Safari.');
+    return;
+  }
+  try { recognition.start(); }
+  catch(e) { console.error(e); }
+};
+
+window.stopSpeaking = function() {
+  if (synth) synth.cancel();
+  isSpeaking = false;
+  document.getElementById('stop-speaking-btn')?.classList.add('hidden');
+};
+
+function speakText(text) {
+  if (!synth || !text) return;
+  synth.cancel();
+
+  // Clean markdown before speaking
+  const clean = text
+    .replace(/#{1,6}\s/g, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[-•]\s/g, '')
+    .trim();
+
+  const utterance   = new SpeechSynthesisUtterance(clean);
+  utterance.lang    = 'es-MX';
+  utterance.rate    = 1.05;
+  utterance.pitch   = 1.0;
+
+  // Prefer a Spanish voice if available
+  const voices = synth.getVoices();
+  const esVoice = voices.find(v => v.lang.startsWith('es') && v.localService) ||
+                  voices.find(v => v.lang.startsWith('es'));
+  if (esVoice) utterance.voice = esVoice;
+
+  utterance.onstart = () => {
+    isSpeaking = true;
+    document.getElementById('stop-speaking-btn')?.classList.remove('hidden');
+  };
+  utterance.onend = () => {
+    isSpeaking = false;
+    document.getElementById('stop-speaking-btn')?.classList.add('hidden');
+  };
+  utterance.onerror = () => {
+    isSpeaking = false;
+    document.getElementById('stop-speaking-btn')?.classList.add('hidden');
+  };
+
+  synth.speak(utterance);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function runArena() {
   const question = document.getElementById('user-question').value.trim();
