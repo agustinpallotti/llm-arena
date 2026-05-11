@@ -473,3 +473,17 @@ body {
   .query-area, .results { padding: 1rem; }
   .results-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Login minimalista ── */
+.login-welcome {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  margin-bottom: 20px;
+  text-align: center;
+}
+.login-box {
+  padding: 3rem 2.25rem;
+  gap: 0;
+}
