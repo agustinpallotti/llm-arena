@@ -37,22 +37,11 @@
 
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="logo">
-          <span class="logo-icon">🔍</span>
-          <span class="logo-text">Lupa</span>
-        </div>
+        <p class="sidebar-greeting" id="sidebar-greeting">Hola, Agustín</p>
         <button class="new-btn" onclick="newQuery()">+ Nueva consulta</button>
       </div>
 
-      <!-- Tabs -->
-      <div class="sidebar-tabs">
-        <button class="sidebar-tab active" id="tab-history" onclick="switchTab('history')">Historial</button>
-        <button class="sidebar-tab" id="tab-profile" onclick="switchTab('profile')">Perfil</button>
-        <button class="sidebar-tab" id="tab-docs" onclick="switchTab('docs')">Docs</button>
-        <button class="sidebar-tab" id="tab-files" onclick="switchTab('files')">Archivos</button>
-      </div>
-
-      <!-- Panel: Historial -->
+      <!-- Panel: Historial (always visible, takes up space) -->
       <div class="sidebar-panel" id="panel-history">
         <div class="history-list" id="history-list">
           <p class="history-empty" id="history-empty">Sin consultas aún</p>
@@ -112,6 +101,26 @@
         </div>
       </div>
 
+      <!-- Tabs at bottom -->
+      <div class="sidebar-tabs-bottom">
+        <button class="sidebar-tab-bottom active" id="tab-history" onclick="switchTab('history')">
+          <span class="tab-icon">💬</span>
+          <span>Historial</span>
+        </button>
+        <button class="sidebar-tab-bottom" id="tab-profile" onclick="switchTab('profile')">
+          <span class="tab-icon">👤</span>
+          <span>Perfil</span>
+        </button>
+        <button class="sidebar-tab-bottom" id="tab-docs" onclick="switchTab('docs')">
+          <span class="tab-icon">📝</span>
+          <span>Docs</span>
+        </button>
+        <button class="sidebar-tab-bottom" id="tab-files" onclick="switchTab('files')">
+          <span class="tab-icon">📁</span>
+          <span>Archivos</span>
+        </button>
+      </div>
+
       <div class="sidebar-footer">
         <div class="user-bar">
           <div class="user-badge" id="user-badge">?</div>
@@ -169,31 +178,32 @@
       <div class="thread-banner hidden" id="thread-banner"></div>
 
       <!-- Query Area -->
-      <div class="query-area">
+      <div class="query-area query-area-bottom">
         <div class="query-inner">
-          <h2 class="query-title">¿Qué quieres encontrar hoy?</h2>
-          <textarea id="user-question" class="question-input" rows="4" placeholder="Escríbele a Lupa..."></textarea>
-
           <p class="detect-status hidden" id="detect-status"></p>
 
-          <!-- File Upload -->
-          <div class="file-upload-area">
-            <label class="file-upload-btn" for="file-input">
-              📎 Adjuntar archivo
-            </label>
-            <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.txt,.md,.doc,.docx,.xls,.xlsx,image/*" onchange="handleFileSelect(event)" />
-          </div>
+          <!-- File preview -->
           <div class="file-preview hidden" id="file-preview">
             <span id="file-info"></span>
             <div class="file-preview-actions">
-              <button class="file-save-btn hidden" id="file-save-btn" onclick="saveFileToStorage()">Guardar en Archivos</button>
-              <button class="file-clear-btn" onclick="clearFile()">✕ Quitar</button>
+              <button class="file-save-btn hidden" id="file-save-btn" onclick="saveFileToStorage()">Guardar</button>
+              <button class="file-clear-btn" onclick="clearFile()">✕</button>
             </div>
           </div>
 
-          <button class="send-btn" id="send-btn" onclick="runArena()">
-            Preguntar ↗
-          </button>
+          <!-- Input box -->
+          <div class="input-box">
+            <textarea id="user-question" class="question-input" rows="3" placeholder="Pregúntale a Lupa..."></textarea>
+            <div class="input-actions">
+              <label class="attach-btn" for="file-input" title="Adjuntar archivo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </label>
+              <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.txt,.md,.doc,.docx,.xls,.xlsx,image/*" onchange="handleFileSelect(event)" />
+              <button class="send-btn" id="send-btn" onclick="runArena()" title="Enviar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

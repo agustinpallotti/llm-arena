@@ -163,6 +163,8 @@ function showApp() {
   document.getElementById('app').classList.remove('hidden');
   loadSettings(); loadHistory(); loadProfile(); loadDocuments(); loadStoredFiles();
   loadModelStats(); loadAutoProfile();
+  updateGreeting();
+  setInterval(updateGreeting, 60000);
 }
 // ── Google SSO ────────────────────────────────────────────────────────────────
 async function signInWithGoogle() {
@@ -263,10 +265,20 @@ async function callProxy(body) {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 window.switchTab = function(tab) {
   ['history','profile','docs','files'].forEach(t => {
-    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
-    document.getElementById('panel-'+t).classList.toggle('hidden', t!==tab);
+    const tabEl = document.getElementById('tab-'+t);
+    const panelEl = document.getElementById('panel-'+t);
+    if (tabEl)   tabEl.classList.toggle('active', t===tab);
+    if (panelEl) panelEl.classList.toggle('hidden', t!==tab);
   });
 };
+
+// Dynamic greeting
+function updateGreeting() {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+  const el = document.getElementById('sidebar-greeting');
+  if (el) el.textContent = `${greeting}, Agustín`;
+}
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 function saveSettings() {
