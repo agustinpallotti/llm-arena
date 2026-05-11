@@ -208,12 +208,43 @@ setInterval(async () => {
 
 // ── Proxy ─────────────────────────────────────────────────────────────────────
 async function callProxy(body) {
+  // Always get a fresh token before calling the proxy
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      SESSION_TOKEN = await user.getIdToken(false); // false = only refresh if expired
+      sessionStorage.setItem('llm-arena-token', SESSION_TOKEN);
+    }
+  } catch(e) { console.warn('Token refresh warning:', e); }
+
   const res = await fetch('/api/query', {
     method:'POST',
     headers:{'Content-Type':'application/json','X-Session-Token':SESSION_TOKEN},
     body:JSON.stringify(body)
   });
-  if (res.status === 401) { sessionStorage.clear(); location.reload(); throw new Error('Sesión expirada.'); }
+
+  // If 401, try once more with a forced fresh token
+  if (res.status === 401) {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        SESSION_TOKEN = await user.getIdToken(true); // force refresh
+        sessionStorage.setItem('llm-arena-token', SESSION_TOKEN);
+        const retry = await fetch('/api/query', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-Session-Token':SESSION_TOKEN},
+          body:JSON.stringify(body)
+        });
+        const retryData = await retry.json();
+        if (retryData.error) throw new Error(retryData.error);
+        return retryData;
+      }
+    } catch(e) { console.error('Token retry failed:', e); }
+    sessionStorage.clear();
+    location.reload();
+    throw new Error('Sesión expirada.');
+  }
+
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data;
