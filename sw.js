@@ -1,4 +1,5 @@
-const CACHE_VERSION = 'lupa-v4';
+// Increment this version to force cache clear on every deploy
+const CACHE_VERSION = 'lupa-v' + Date.now();
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -10,9 +11,17 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Never cache anything — always use network
+// Network only — never cache JS/CSS/HTML
 self.addEventListener('fetch', event => {
-  // Only handle GET requests — skip POST and everything else
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  // Never cache app files
+  if (url.pathname.endsWith('.js') || 
+      url.pathname.endsWith('.css') || 
+      url.pathname.endsWith('.html') ||
+      url.pathname === '/') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
