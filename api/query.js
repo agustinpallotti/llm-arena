@@ -48,7 +48,7 @@ async function callGPT(systemPrompt, userMsg, fileData) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY },
-    body: JSON.stringify({ model: 'gpt-4o-mini', messages, max_tokens: 1200 })
+    body: JSON.stringify({ model: 'gpt-4o', messages, max_tokens: 1200 })
   });
   const data = await res.json();
   if (data.error) throw new Error('GPT: ' + data.error.message);
@@ -59,7 +59,7 @@ async function callGemini(systemPrompt, userMsg, fileData) {
   let userContent = userMsg;
   if (fileData && fileData.text) userContent = `Archivo adjunto:\n\n${fileData.text}\n\n---\n\n${userMsg}`;
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -89,7 +89,7 @@ async function callClaude(systemPrompt, userMsg, fileData) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1200, system: systemPrompt, messages: [{ role: 'user', content }] })
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1200, system: systemPrompt, messages: [{ role: 'user', content }] })
   });
   const data = await res.json();
   if (data.error) throw new Error('Claude: ' + JSON.stringify(data.error));
