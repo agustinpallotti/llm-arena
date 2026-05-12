@@ -1,9 +1,3 @@
-// Load Inter font
-const _fontLink = document.createElement('link');
-_fontLink.rel = 'stylesheet';
-_fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap';
-document.head.appendChild(_fontLink);
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query, updateDoc, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -20,6 +14,17 @@ const firebaseConfig = {
 };
 const firebaseApp = initializeApp(firebaseConfig);
 const db      = getFirestore(firebaseApp);
+
+// Load Inter font safely after module loads
+(function() {
+  const l = document.createElement('link');
+  l.rel  = 'preconnect'; l.href = 'https://fonts.googleapis.com';
+  document.head.appendChild(l);
+  const l2 = document.createElement('link');
+  l2.rel  = 'stylesheet';
+  l2.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap';
+  document.head.appendChild(l2);
+})();
 const storage = getStorage(firebaseApp);
 const auth    = getAuth(firebaseApp);
 const ALLOWED_EMAIL = 'agustin@agustinpallotti.com'; // set to your email to restrict, or null to allow any Google account
@@ -49,6 +54,10 @@ onAuthStateChanged(auth, async (user) => {
     updateUserBadge(user);
     loadSettings(); loadHistory(); loadProfile(); loadDocuments(); loadStoredFiles();
     loadModelStats(); loadAutoProfile();
+    updateGreeting();
+    if (!window._greetingInterval) {
+      window._greetingInterval = setInterval(updateGreeting, 60000);
+    }
   }
 });
 let currentThreadId = null;
