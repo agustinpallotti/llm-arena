@@ -9,26 +9,17 @@ function setCors(res) {
 async function verifyFirebaseToken(idToken) {
   if (!idToken) return false;
   try {
-    // Decode JWT payload (middle part) without verification
-    // Firebase tokens are JWTs — we check they belong to our project
     const parts = idToken.split('.');
     if (parts.length !== 3) return false;
     const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-    
-    // Check token is not expired
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) return false;
-    
-    // Check it belongs to our Firebase project
     const validAudiences = [
       'llm-arena-60597',
       '507852214387-o2rch6rt2vv9si3r4u7d4ofr0e9od2qq.apps.googleusercontent.com'
     ];
     if (!validAudiences.includes(payload.aud)) return false;
-    
-    // Check it has a valid email (Google SSO users always have email)
     if (!payload.email && !payload.sub) return false;
-    
     return true;
   } catch { return false; }
 }
@@ -48,7 +39,7 @@ async function callGPT(systemPrompt, userMsg, fileData) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY },
-    body: JSON.stringify({ model: 'gpt-4o', messages, max_tokens: 1200 })
+    body: JSON.stringify({ model: 'gpt-4o', messages, max_tokens: 2500 })
   });
   const data = await res.json();
   if (data.error) throw new Error('GPT: ' + data.error.message);
@@ -89,7 +80,7 @@ async function callClaude(systemPrompt, userMsg, fileData) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1200, system: systemPrompt, messages: [{ role: 'user', content }] })
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2500, system: systemPrompt, messages: [{ role: 'user', content }] })
   });
   const data = await res.json();
   if (data.error) throw new Error('Claude: ' + JSON.stringify(data.error));
@@ -115,12 +106,12 @@ Razón: [por qué es el mejor en 2 líneas]`;
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY },
     body: JSON.stringify({
-      model: 'gpt-5.4-mini',
+      model: 'gpt-5.4',
       messages: [
         { role: 'system', content: 'Eres un árbitro imparcial. Evalúa con rigor y objetividad. Nunca favorezcas a ChatGPT solo porque comparte tu origen.' },
         { role: 'user', content: prompt }
       ],
-      max_completion_tokens: 600
+      max_completion_tokens: 800
     })
   });
   const data = await res.json();
@@ -128,54 +119,6 @@ Razón: [por qué es el mejor en 2 líneas]`;
   return data.choices[0].message.content;
 }
 
-async function detectModels(question) {
-  // Claude decides — more impartial, tends to be self-critical
-  // GPT is explicitly excluded from being the decider to avoid self-selection bias
-  const prompt = `Eres un selector imparcial de modelos de IA. Tu único trabajo es decidir qué modelo es el MÁS ADECUADO para responder esta pregunta.
-
-Pregunta: "${question}"
-
-Modelos disponibles y sus fortalezas reales:
-- gpt: ChatGPT GPT-4o-mini — código, matemáticas, instrucciones paso a paso, lógica estructurada, programación
-- gemini: Google Gemini 2.5 Flash — información reciente, noticias, eventos actuales, búsqueda web, datos en tiempo real
-- claude: Anthropic Claude — redacción creativa, análisis profundo, razonamiento ético, textos largos, síntesis, humanidades
-
-Reglas estrictas:
-1. Elige UNO como primero (el mejor para esta pregunta específica)
-2. Sé honesto — no favorezcas a ninguno por defecto
-3. Para preguntas generales o ambiguas, elige claude como primero
-4. Para código o matemáticas, elige gpt como primero
-5. Para noticias o información reciente (post-2024), elige gemini como primero
-
-Responde SOLO con JSON válido sin texto adicional:
-{"models": ["claude", "gpt", "gemini"], "reason": "razón breve en español"}
-
-El orden importa: el PRIMERO es quien responderá.`;
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 150,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(JSON.stringify(data.error));
-  try {
-    const text = data.content.map(b => b.text||'').join('');
-    return JSON.parse(text.replace(/```json|```/g,'').trim());
-  } catch {
-    return { models: ['claude','gpt','gemini'], reason: 'Selección por defecto' };
-  }
-}
-
-// ── Learning: analyze user style ─────────────────────────────────────────────
 async function analyzeUserStyle(recentQuestions) {
   const prompt = `Analiza estas preguntas recientes de un usuario y extrae un perfil de estilo conciso.
 
@@ -188,19 +131,10 @@ Responde SOLO con JSON válido:
   "style": "estilo de comunicación en 1 línea (ej: directo, técnico, analítico)",
   "interests": ["tema1", "tema2", "tema3"]
 }`;
-
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }]
-    })
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, messages: [{ role: 'user', content: prompt }] })
   });
   const data = await res.json();
   if (data.error) throw new Error(JSON.stringify(data.error));
@@ -209,9 +143,7 @@ Responde SOLO con JSON válido:
   catch { return null; }
 }
 
-// ── Smart model selection using learned preferences ───────────────────────────
 async function detectModelsWithLearning(question, modelStats) {
-  // Build learned preferences context
   let learnedCtx = '';
   if (modelStats && Object.keys(modelStats).length > 0) {
     learnedCtx = '\n\nHistorial de preferencias del usuario (úsalo para decidir mejor):\n';
@@ -232,32 +164,24 @@ async function detectModelsWithLearning(question, modelStats) {
 Pregunta: "${question}"
 ${learnedCtx}
 Modelos disponibles:
-- gpt: ChatGPT GPT-4o-mini — código, matemáticas, instrucciones paso a paso, programación
-- gemini: Google Gemini 2.5 Flash — información reciente, noticias, eventos actuales, datos en tiempo real
-- claude: Anthropic Claude — redacción, análisis profundo, razonamiento, síntesis, humanidades
+- gpt: ChatGPT GPT-4o — código, matemáticas, instrucciones paso a paso, programación, análisis técnico
+- gemini: Google Gemini 2.5 Pro — información reciente, noticias, eventos actuales, datos en tiempo real, búsqueda web
+- claude: Anthropic Claude Sonnet — redacción, análisis profundo, razonamiento, síntesis, estrategia, humanidades
 
 Reglas:
 1. Usa el historial de preferencias si existe para este tipo de pregunta
-2. Para preguntas generales → claude primero
-3. Para código/matemáticas → gpt primero
-4. Para noticias/datos recientes → gemini primero
-5. Clasifica la pregunta en una categoría simple (código, análisis, redacción, noticias, general, matemáticas, etc.)
+2. Para preguntas generales o de análisis → claude primero
+3. Para código o matemáticas → gpt primero
+4. Para noticias o datos recientes (post-2024) → gemini primero
+5. Clasifica la pregunta en una categoría simple (código, análisis, redacción, noticias, general, matemáticas, estrategia, etc.)
 
 Responde SOLO con JSON:
 {"models": ["claude", "gpt", "gemini"], "reason": "razón breve", "category": "categoría detectada"}`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }]
-    })
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, messages: [{ role: 'user', content: prompt }] })
   });
   const data = await res.json();
   if (data.error) throw new Error(JSON.stringify(data.error));
@@ -284,8 +208,6 @@ module.exports = async function handler(req, res) {
     try {
       const modelStats = req.body.modelStats || {};
       const hasImage   = req.body.hasImage   || false;
-
-      // If there is an image, force vision-capable models only (not Gemini)
       if (hasImage) {
         return res.status(200).json({
           models:   ['claude', 'gpt', 'gemini'],
@@ -293,7 +215,6 @@ module.exports = async function handler(req, res) {
           category: 'imagen'
         });
       }
-
       return res.status(200).json(await detectModelsWithLearning(question, modelStats));
     }
     catch(e) { return res.status(500).json({ error: e.message }); }
