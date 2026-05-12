@@ -1,3 +1,9 @@
+// Load Inter font
+const _fontLink = document.createElement('link');
+_fontLink.rel = 'stylesheet';
+_fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap';
+document.head.appendChild(_fontLink);
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query, updateDoc, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
@@ -437,33 +443,25 @@ async function loadThreadItem(threadId, data, btn) {
   btn.classList.add('active');
   currentThreadId = threadId;
   currentThread   = data.turns||[];
+  const last      = currentThread[currentThread.length-1];
+  if (!last) return;
 
-  // Clear and rebuild chat
-  document.getElementById('chat-area').innerHTML = '';
+  document.getElementById('user-question').value = '';
+  // results div removed in chat layout
   document.getElementById('other-opinions-section').classList.add('hidden');
   document.getElementById('ask-others-btn').classList.remove('hidden');
-  document.getElementById('ask-others-btn').classList.remove('hidden');
 
-  // Render all turns
-  currentThread.forEach(turn => {
-    const winner = turn.winner || 'claude';
-    const lastTurnId = addChatTurn(turn.question, winner, turn[winner] || '[Sin respuesta]', 'done');
-    window._currentTurnId = lastTurnId;
-  });
-
-  const last = currentThread[currentThread.length-1];
-  if (last) {
-    lastResults = { gpt:last.gpt, gemini:last.gemini, claude:last.claude };
-    chosenModel = last.winner || 'claude';
-  }
+  // Show primary answer
+  const winner = last.winner || 'claude';
+  setPrimaryCard(winner, last[winner]||'[Sin respuesta]', 'done', 'Listo');
+  lastResults  = { gpt:last.gpt, gemini:last.gemini, claude:last.claude };
+  chosenModel  = winner;
 
   const banner = document.getElementById('thread-banner');
   if (currentThread.length > 1) {
     banner.classList.remove('hidden');
-    banner.textContent = `Conversación de ${currentThread.length} turnos — continuando`;
+    banner.textContent = `💬 Conversación de ${currentThread.length} turnos — continuando hilo`;
   } else { banner.classList.add('hidden'); }
-
-  document.getElementById('user-question').focus();
 }
 
 window.newQuery = function() {
@@ -473,7 +471,7 @@ window.newQuery = function() {
   chosenModel     = null;
   document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
   document.getElementById('user-question').value = '';
-  document.getElementById('results').classList.add('hidden');
+  // results div removed in chat layout
   document.getElementById('progress-bar').classList.add('hidden');
   document.getElementById('detect-status').classList.add('hidden');
   document.getElementById('thread-banner').classList.add('hidden');
@@ -518,21 +516,21 @@ window.askOthers = async function() {
   const tasks = others.map(async m => {
     // Create card
     const card = document.createElement('div');
-    card.className = 'other-card';
+    card.className = 'result-card';
     card.id = 'other-card-' + m;
     const meta = MODEL_META[m];
     card.innerHTML = `
-      <div class="other-card-header">
+      <div class="result-card-header">
         <div class="model-label"><span class="dot ${meta.dotClass}"></span><span>${meta.name}</span></div>
-        <span class="model-status" id="other-status-${m}">Consultando...</span>
+        <span class="status-chip" id="other-status-${m}">Consultando...</span>
       </div>
-      <div class="model-response-body" id="other-text-${m}">—</div>`;
+      <div class="result-text" id="other-text-${m}">—</div>`;
     grid.appendChild(card);
 
     // If we already have the result (from a previous full query), show it
     if (lastResults[m]) {
-      document.getElementById('other-text-'+m).innerHTML    = renderMarkdown(lastResults[m]);
-      document.getElementById('other-status-'+m).className   = 'model-status done';
+      document.getElementById('other-text-'+m).textContent   = lastResults[m];
+      document.getElementById('other-status-'+m).className   = 'status-chip done';
       document.getElementById('other-status-'+m).textContent = 'Listo';
       return;
     }
@@ -548,7 +546,7 @@ window.askOthers = async function() {
       document.getElementById('other-status-'+m).textContent = 'Listo';
     } catch(e) {
       document.getElementById('other-text-'+m).textContent   = 'Error: ' + e.message;
-      document.getElementById('other-status-'+m).className   = 'model-status error';
+      document.getElementById('other-status-'+m).className   = 'status-chip error';
       document.getElementById('other-status-'+m).textContent = 'Error';
     }
   });
@@ -802,17 +800,7 @@ window.deleteDocument=deleteDocument;
 
 // ── Memory Banner ─────────────────────────────────────────────────────────────
 function updateMemoryBanner() {
-  const hasProfile=document.getElementById('profile-name').value.trim()||document.getElementById('profile-context').value.trim();
-  const hasDocs=userDocs.length>0;
-  const banner=document.getElementById('memory-banner');
-  const summary=document.getElementById('memory-summary');
-  if (hasProfile||hasDocs) {
-    banner.classList.remove('hidden');
-    const parts=[];
-    if (hasProfile) parts.push('perfil personal');
-    if (hasDocs)    parts.push(`${userDocs.length} documento${userDocs.length>1?'s':''}`);
-    summary.textContent=`Los modelos usarán tu ${parts.join(' y ')} como contexto`;
-  } else { banner.classList.add('hidden'); }
+  // Memory banner removed from new chat layout — no-op
 }
 
 // ── UI Helpers ────────────────────────────────────────────────────────────────
@@ -932,87 +920,6 @@ function speakText(text) {
   synth.speak(utterance);
 }
 
-
-// ── Markdown renderer ────────────────────────────────────────────────────────
-function renderMarkdown(text) {
-  if (!text) return '';
-  let t = text
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
-    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
-    .replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*([^*\n]+?)\*/g,'<em>$1</em>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>')
-    .replace(/^---+$/gm,'<hr>');
-
-  // Tables
-  t = t.replace(/(\|.+\|\n)((\|[-: |]+\|\n))((\|.+\|\n?)+)/gm, match => {
-    const rows = match.trim().split('\n').filter(r => r.trim());
-    if (rows.length < 2) return match;
-    const parseRow = (row, tag) => '<tr>' + row.split('|').slice(1,-1).map(c=>`<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
-    return '<table><thead>' + parseRow(rows[0],'th') + '</thead><tbody>' + rows.slice(2).map(r=>parseRow(r,'td')).join('') + '</tbody></table>';
-  });
-
-  // Lists
-  t = t.replace(/^[*\-] (.+)$/gm,'<li>$1</li>');
-  t = t.replace(/^(\d+)\. (.+)$/gm,'<li>$2</li>');
-  t = t.replace(/(<li>[^]*?<\/li>\n?)+/gm, m => m.trim().startsWith('<li>') ? '<ul>' + m + '</ul>' : m);
-
-  // Paragraphs
-  t = t.split(/\n{2,}/).map(b => {
-    b = b.trim();
-    if (!b) return '';
-    if (/^<(h[1-3]|ul|ol|table|hr|pre|blockquote)/.test(b)) return b;
-    return '<p>' + b.replace(/\n/g,'<br>') + '</p>';
-  }).join('\n');
-
-  return t;
-}
-
-
-// ── Chat rendering ───────────────────────────────────────────────────────────
-const MODEL_NAMES  = { gpt:'ChatGPT', gemini:'Gemini', claude:'Claude' };
-const MODEL_COLORS = { gpt:'#10a37f', gemini:'#4285F4', claude:'#c9824a' };
-
-function addChatTurn(question, model, responseText, statusType) {
-  const chatArea = document.getElementById('chat-area');
-
-  const turn = document.createElement('div');
-  turn.className = 'chat-turn';
-  turn.id = 'turn-' + Date.now();
-
-  turn.innerHTML = `
-    <div class="user-bubble-wrap">
-      <div class="user-bubble">${escapeHtml(question)}</div>
-    </div>
-    <div class="model-response" id="response-${turn.id}">
-      <div class="model-response-header">
-        <span style="width:7px;height:7px;border-radius:50%;background:${MODEL_COLORS[model]||'#888'};display:inline-block;flex-shrink:0;margin-right:2px"></span>
-        <span class="model-response-name">${MODEL_NAMES[model]||model}</span>
-        <span class="model-badge">Elegido por Lupa</span>
-        <span class="model-status ${statusType}" id="status-${turn.id}">${statusType==='done'?'Listo':'Consultando...'}</span>
-      </div>
-      <div class="model-response-body" id="body-${turn.id}">${responseText ? renderMarkdown(responseText) : '<span style="color:var(--muted);font-style:italic">Pensando...</span>'}</div>
-    </div>
-  `;
-
-  chatArea.appendChild(turn);
-  chatArea.scrollTop = chatArea.scrollHeight;
-  return turn.id;
-}
-
-function updateChatTurn(turnId, responseText, statusType) {
-  const body   = document.getElementById('body-' + turnId);
-  const status = document.getElementById('status-' + turnId);
-  if (body)   body.innerHTML = renderMarkdown(responseText);
-  if (status) { status.textContent = statusType === 'done' ? 'Listo' : 'Error'; status.className = 'model-status ' + statusType; }
-  const chatArea = document.getElementById('chat-area');
-  if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
-}
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function runArena() {
   const question = document.getElementById('user-question').value.trim();
@@ -1022,7 +929,7 @@ async function runArena() {
   btn.disabled=true;
   btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="opacity:0.4"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
 
-  document.getElementById('results').classList.remove('hidden');
+  // results div removed in chat layout
   document.getElementById('progress-bar').classList.remove('hidden');
   document.getElementById('other-opinions-section').classList.add('hidden');
   document.getElementById('ask-others-btn').classList.remove('hidden');
@@ -1060,10 +967,10 @@ async function runArena() {
       fileData: primary==='gemini'&&fd?.text ? {text:fd.text} : fd
     });
     lastResults[primary] = d.result;
-    updateChatTurn(currentTurnId, d.result, 'done');
+    setPrimaryCard(primary, d.result, 'done', 'Listo');
     setProgress(90);
   } catch(e) {
-    updateChatTurn(currentTurnId, 'Error: ' + e.message, 'error');
+    setPrimaryCard(primary, 'Error: '+e.message, 'error', 'Error');
     setProgress(90);
   }
 
@@ -1085,7 +992,7 @@ async function runArena() {
   const banner=document.getElementById('thread-banner');
   if (currentThread.length>1) {
     banner.classList.remove('hidden');
-    banner.textContent=`Conversación de ${currentThread.length} turnos`;
+    banner.textContent=`💬 Conversación de ${currentThread.length} turnos`;
   }
 }
 window.runArena=runArena;
