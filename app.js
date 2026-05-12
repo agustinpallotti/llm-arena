@@ -919,6 +919,87 @@ function speakText(text) {
   synth.speak(utterance);
 }
 
+
+// ── Markdown renderer ─────────────────────────────────────────────────────────
+function renderMarkdown(text) {
+  if (!text) return '';
+  let t = text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*
+]+?)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/^---+$/gm,'<hr>');
+  // Tables
+  t = t.replace(/(\|.+\|
+)((\|[-: |]+\|
+))((\|.+\|
+?)+)/gm, match => {
+    const rows = match.trim().split('
+').filter(r => r.trim());
+    if (rows.length < 2) return match;
+    const parseRow = (row, tag) => '<tr>' + row.split('|').slice(1,-1).map(c=>`<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
+    return '<table><thead>' + parseRow(rows[0],'th') + '</thead><tbody>' + rows.slice(2).map(r=>parseRow(r,'td')).join('') + '</tbody></table>';
+  });
+  // Lists
+  t = t.replace(/^[*-] (.+)$/gm,'<li>$1</li>');
+  t = t.replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
+  t = t.replace(/(<li>[\s\S]*?<\/li>\n?)+/gm, m => '<ul>' + m + '</ul>');
+  // Paragraphs
+  t = t.split(/\n{2,}/).map(b => {
+    b = b.trim();
+    if (!b) return '';
+    if (/^<(h[1-3]|ul|ol|table|hr|pre|blockquote)/.test(b)) return b;
+    return '<p>' + b.replace(/\n/g,'<br>') + '</p>';
+  }).join('\n');
+  return t;
+}
+
+// ── Chat turn helpers ─────────────────────────────────────────────────────────
+const MODEL_NAMES  = { gpt:'ChatGPT', gemini:'Gemini', claude:'Claude' };
+const MODEL_COLORS = { gpt:'#10a37f', gemini:'#4285F4', claude:'#c9824a' };
+
+function addChatTurn(question, model, responseText, statusType) {
+  const chatArea = document.getElementById('chat-area');
+  if (!chatArea) return 'turn-0';
+  const turnId = 'turn-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
+  const turn   = document.createElement('div');
+  turn.className = 'chat-turn';
+  turn.id = turnId;
+  const color = MODEL_COLORS[model] || '#888';
+  const name  = MODEL_NAMES[model]  || model;
+  turn.innerHTML = `
+    <div class="user-bubble-wrap">
+      <div class="user-bubble">${escapeHtml(question)}</div>
+    </div>
+    <div class="model-response">
+      <div class="model-response-header">
+        <span style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block;margin-right:4px;flex-shrink:0"></span>
+        <span class="model-response-name">${name}</span>
+        <span class="model-badge">Elegido por Lupa</span>
+        <span class="model-status ${statusType}" id="mstatus-${turnId}">${statusType==='done'?'Listo':statusType==='error'?'Error':'...'}</span>
+      </div>
+      <div class="model-response-body" id="mbody-${turnId}">${responseText ? renderMarkdown(responseText) : '<span style="color:var(--muted);font-style:italic">Pensando...</span>'}</div>
+    </div>`;
+  chatArea.appendChild(turn);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  return turnId;
+}
+
+function updateChatTurn(turnId, responseText, statusType) {
+  const body   = document.getElementById('mbody-'   + turnId);
+  const status = document.getElementById('mstatus-' + turnId);
+  if (body)   body.innerHTML   = renderMarkdown(responseText);
+  if (status) { status.textContent = statusType==='done'?'Listo':'Error'; status.className = 'model-status ' + statusType; }
+  const chatArea = document.getElementById('chat-area');
+  if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function runArena() {
   const question = document.getElementById('user-question').value.trim();
