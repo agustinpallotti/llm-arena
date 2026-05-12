@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lupa — ai.agustinpallotti.com</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 
   <!-- PWA -->
@@ -177,48 +179,15 @@
 
       <!-- Memory Banner -->
       <div class="memory-banner hidden" id="memory-banner">
+        <span class="memory-icon">🧠</span>
         <span id="memory-summary">Usando tu perfil y contexto personal</span>
       </div>
 
       <!-- Thread Banner -->
       <div class="thread-banner hidden" id="thread-banner"></div>
 
-      <!-- Scroll area -->
-      <div class="main-scroll">
-
-      <!-- Results -->
-      <div id="results" class="results hidden">
-
-        <!-- Primary answer -->
-        <div class="primary-card" id="primary-card">
-          <div class="primary-card-header">
-            <div class="model-label" id="primary-model-label">
-              <span class="dot gpt" id="primary-dot"></span>
-              <span id="primary-model-name">—</span>
-              <span class="lupa-badge">Elegido por Lupa</span>
-            </div>
-            <span class="status-chip" id="primary-status">Consultando...</span>
-          </div>
-          <div class="result-text" id="primary-text">—</div>
-        </div>
-
-        <!-- Other opinions -->
-        <div id="other-opinions-section" class="hidden">
-          <div class="other-opinions-header">Otras opiniones</div>
-          <div class="results-grid" id="other-opinions-grid"></div>
-        </div>
-
-        <!-- Ask others button -->
-        <button class="ask-others-btn" id="ask-others-btn" onclick="askOthers()">
-          Pedir otras opiniones
-        </button>
-
-      </div>
-
-      </div><!-- /main-scroll -->
-
       <!-- Query Area -->
-      <div class="query-area">
+      <div class="query-area query-area-bottom">
         <div class="query-inner">
           <p class="detect-status hidden" id="detect-status"></p>
 
@@ -279,6 +248,40 @@
       <!-- Progress -->
       <div class="progress-bar hidden" id="progress-bar">
         <div class="progress-fill" id="progress-fill"></div>
+      </div>
+
+      <!-- Results -->
+      <div id="results" class="results hidden">
+
+        <!-- User message -->
+        <div class="user-message" id="user-message-display">
+          <div class="user-message-bubble" id="user-message-text"></div>
+        </div>
+
+        <!-- Primary answer -->
+        <div class="primary-card" id="primary-card">
+          <div class="primary-card-header">
+            <div class="model-label" id="primary-model-label">
+              <span class="dot gpt" id="primary-dot"></span>
+              <span id="primary-model-name">—</span>
+              <span class="lupa-badge">🔍 Elegido por Lupa</span>
+            </div>
+            <span class="status-chip" id="primary-status">Consultando...</span>
+          </div>
+          <div class="result-text" id="primary-text">—</div>
+        </div>
+
+        <!-- Other opinions -->
+        <div id="other-opinions-section" class="hidden">
+          <div class="other-opinions-header">Otras opiniones</div>
+          <div class="results-grid" id="other-opinions-grid"></div>
+        </div>
+
+        <!-- Ask others button -->
+        <button class="ask-others-btn" id="ask-others-btn" onclick="askOthers()">
+          Pedir otras opiniones
+        </button>
+
       </div>
 
     </main>

@@ -465,6 +465,8 @@ window.newQuery = function() {
   chosenModel     = null;
   document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
   document.getElementById('user-question').value = '';
+  const _ubEl = document.getElementById('user-message-text');
+  if (_ubEl) _ubEl.textContent = '';
   document.getElementById('results').classList.add('hidden');
   document.getElementById('progress-bar').classList.add('hidden');
   document.getElementById('detect-status').classList.add('hidden');
@@ -940,6 +942,12 @@ async function runArena() {
   document.getElementById('ask-others-btn').disabled=false;
   document.getElementById('ask-others-btn').textContent='Pedir otras opiniones';
   lastResults = {};
+
+  // Show user message bubble
+  const userMsgEl = document.getElementById('user-message-text');
+  const userMsgDisplay = document.getElementById('user-message-display');
+  if (userMsgEl) { userMsgEl.textContent = question; userMsgDisplay.classList.remove('hidden'); }
+
   setProgress(10);
 
   // Step 1: Lupa decides
