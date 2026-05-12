@@ -452,10 +452,9 @@ async function loadThreadItem(threadId, data, btn) {
   document.getElementById('ask-others-btn').classList.remove('hidden');
 
   // Show primary answer
-  const winner = last.winner || 'claude';
-  setPrimaryCard(winner, last[winner]||'[Sin respuesta]', 'done', 'Listo');
+  // rendered via addChatTurn loop above
   lastResults  = { gpt:last.gpt, gemini:last.gemini, claude:last.claude };
-  chosenModel  = winner;
+  chosenModel  = last.winner || 'claude';
 
   const banner = document.getElementById('thread-banner');
   if (currentThread.length > 1) {
@@ -953,7 +952,7 @@ async function runArena() {
   setProgress(30);
 
   // Step 2: Show card loading state
-  setPrimaryCard(primary, '—', '', 'Consultando...');
+  // Turn already created by addChatTurn above
 
   // Step 3: Call chosen model
   const def = 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
@@ -967,10 +966,10 @@ async function runArena() {
       fileData: primary==='gemini'&&fd?.text ? {text:fd.text} : fd
     });
     lastResults[primary] = d.result;
-    setPrimaryCard(primary, d.result, 'done', 'Listo');
+    updateChatTurn(window._currentTurnId, d.result, 'done');
     setProgress(90);
   } catch(e) {
-    setPrimaryCard(primary, 'Error: '+e.message, 'error', 'Error');
+    updateChatTurn(window._currentTurnId, 'Error: ' + e.message, 'error');
     setProgress(90);
   }
 
