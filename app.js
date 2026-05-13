@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, getDoc, setDoc, deleteDoc, doc, orderBy, query, updateDoc, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -152,16 +152,7 @@ async function loadAutoProfile() {
   } catch(e) { console.error(e); }
 }
 
-function showApp() {
-  document.getElementById('login-screen').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  loadSettings(); loadHistory(); loadProfile(); loadDocuments(); loadStoredFiles();
-  loadModelStats(); loadAutoProfile();
-  updateGreeting();
-  if (!window._greetingInterval) {
-    window._greetingInterval = setInterval(updateGreeting, 60000);
-  }
-}
+// showApp() merged into onAuthStateChanged
 // ── Google SSO ────────────────────────────────────────────────────────────────
 async function signInWithGoogle() {
   const btn = document.getElementById('google-signin-btn') || document.getElementById('google-btn');
@@ -369,6 +360,8 @@ const MODEL_META = {
   gemini: { name:'Gemini',   dotClass:'gemini' },
   claude: { name:'Claude',   dotClass:'claude' }
 };
+const MODEL_NAMES  = { gpt:'ChatGPT', gemini:'Gemini', claude:'Claude' };
+const MODEL_COLORS = { gpt:'#10a37f', gemini:'#4285F4', claude:'#c9824a' };
 
 function otherModels(chosen) {
   return ['gpt','gemini','claude'].filter(m => m !== chosen);
@@ -451,25 +444,34 @@ async function loadThreadItem(threadId, data, btn) {
   document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   currentThreadId = threadId;
-  currentThread   = data.turns||[];
-  const last      = currentThread[currentThread.length-1];
-  if (!last) return;
+  currentThread   = data.turns || [];
 
-  document.getElementById('user-question').value = '';
-  // results div removed in chat layout
+  // Clear chat and render all turns
+  const chatArea = document.getElementById('chat-area');
+  chatArea.innerHTML = '';
   document.getElementById('other-opinions-section').classList.add('hidden');
   document.getElementById('ask-others-btn').classList.remove('hidden');
+  document.getElementById('thread-banner').classList.add('hidden');
 
-  // Show primary answer
-  // rendered via addChatTurn loop above
-  lastResults  = { gpt:last.gpt, gemini:last.gemini, claude:last.claude };
-  chosenModel  = last.winner || 'claude';
+  currentThread.forEach(turn => {
+    const winner = turn.winner || 'claude';
+    const turnId = addChatTurn(turn.question, winner, turn[winner] || '[Sin respuesta]', 'done');
+    window._currentTurnId = turnId;
+  });
+
+  const last = currentThread[currentThread.length - 1];
+  if (last) {
+    lastResults = { gpt: last.gpt, gemini: last.gemini, claude: last.claude };
+    chosenModel = last.winner || 'claude';
+  }
 
   const banner = document.getElementById('thread-banner');
   if (currentThread.length > 1) {
     banner.classList.remove('hidden');
-    banner.textContent = `💬 Conversación de ${currentThread.length} turnos — continuando hilo`;
-  } else { banner.classList.add('hidden'); }
+    banner.textContent = `💬 Conversación de ${currentThread.length} turnos`;
+  }
+
+  document.getElementById('user-question').focus();
 }
 
 window.newQuery = function() {
@@ -477,28 +479,21 @@ window.newQuery = function() {
   currentThread   = [];
   lastResults     = {};
   chosenModel     = null;
+  window._currentTurnId = null;
   document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
   document.getElementById('user-question').value = '';
-  // results div removed in chat layout
+  document.getElementById('chat-area').innerHTML = '';
   document.getElementById('progress-bar').classList.add('hidden');
   document.getElementById('detect-status').classList.add('hidden');
   document.getElementById('thread-banner').classList.add('hidden');
   document.getElementById('other-opinions-section').classList.add('hidden');
+  document.getElementById('ask-others-btn').classList.add('hidden');
   clearFile();
   setProgress(0);
   document.getElementById('user-question').focus();
 };
 
-// ── Primary card ──────────────────────────────────────────────────────────────
-function setPrimaryCard(model, text, statusType, statusLabel) {
-  const meta = MODEL_META[model] || { name: model, dotClass: 'claude' };
-  document.getElementById('primary-dot').className        = 'dot ' + meta.dotClass;
-  document.getElementById('primary-model-name').textContent = meta.name;
-  document.getElementById('primary-text').textContent     = text;
-  const statusEl = document.getElementById('primary-status');
-  statusEl.className   = 'status-chip ' + statusType;
-  statusEl.textContent = statusLabel;
-}
+// setPrimaryCard removed — chat layout uses addChatTurn/updateChatTurn
 
 // ── Ask Others ────────────────────────────────────────────────────────────────
 window.askOthers = async function() {
@@ -524,21 +519,25 @@ window.askOthers = async function() {
   const tasks = others.map(async m => {
     // Create card
     const card = document.createElement('div');
-    card.className = 'result-card';
+    card.className = 'other-card';
     card.id = 'other-card-' + m;
-    const meta = MODEL_META[m];
+    const color = MODEL_COLORS[m] || '#888';
+    const name  = MODEL_NAMES[m]  || m;
     card.innerHTML = `
-      <div class="result-card-header">
-        <div class="model-label"><span class="dot ${meta.dotClass}"></span><span>${meta.name}</span></div>
-        <span class="status-chip" id="other-status-${m}">Consultando...</span>
+      <div class="other-card-header">
+        <div class="model-label">
+          <span style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block;margin-right:4px"></span>
+          <span>${name}</span>
+        </div>
+        <span class="model-status" id="other-status-${m}">Consultando...</span>
       </div>
-      <div class="result-text" id="other-text-${m}">—</div>`;
+      <div class="model-response-body" id="other-text-${m}">—</div>`;
     grid.appendChild(card);
 
     // If we already have the result (from a previous full query), show it
     if (lastResults[m]) {
-      document.getElementById('other-text-'+m).textContent   = lastResults[m];
-      document.getElementById('other-status-'+m).className   = 'status-chip done';
+      document.getElementById('other-text-'+m).innerHTML    = renderMarkdown(lastResults[m]);
+      document.getElementById('other-status-'+m).className   = 'model-status done';
       document.getElementById('other-status-'+m).textContent = 'Listo';
       return;
     }
@@ -549,12 +548,12 @@ window.askOthers = async function() {
       const sp  = await buildSystemPrompt(sys);
       const d   = await callProxy({ model:m, systemPrompt:sp, userMsg:question, fileData: m==='gemini' && fd?.text ? {text:fd.text} : fd });
       lastResults[m] = d.result;
-      document.getElementById('other-text-'+m).textContent   = d.result;
-      document.getElementById('other-status-'+m).className   = 'status-chip done';
+      document.getElementById('other-text-'+m).innerHTML    = renderMarkdown(d.result);
+      document.getElementById('other-status-'+m).className   = 'model-status done';
       document.getElementById('other-status-'+m).textContent = 'Listo';
     } catch(e) {
       document.getElementById('other-text-'+m).textContent   = 'Error: ' + e.message;
-      document.getElementById('other-status-'+m).className   = 'status-chip error';
+      document.getElementById('other-status-'+m).className   = 'model-status error';
       document.getElementById('other-status-'+m).textContent = 'Error';
     }
   });
@@ -720,19 +719,18 @@ async function saveProfile() {
   const saved = document.getElementById('profile-saved');
   saved.classList.remove('hidden');
   setTimeout(()=>saved.classList.add('hidden'),2500);
-  updateMemoryBanner();
 }
 async function loadProfile() {
   try {
     const snap = await getDoc(doc(db,'user','profile'));
     if (snap.exists()) {
       const p=snap.data();
-      document.getElementById('profile-name').value    = p.name    ||'';
-      document.getElementById('profile-role').value    = p.role    ||'';
-      document.getElementById('profile-context').value = p.context ||'';
-      document.getElementById('profile-style').value   = p.style   ||'';
-      document.getElementById('profile-topics').value  = p.topics  ||'';
-      updateMemoryBanner();
+      document.getElementById('profile-name').value    = p.name    || '';
+      document.getElementById('profile-role').value    = p.role    || '';
+      document.getElementById('profile-context').value = p.context || '';
+      document.getElementById('profile-style').value   = p.style   || '';
+      document.getElementById('profile-topics').value  = p.topics  || '';
+      document.getElementById('profile-voice').value   = p.voice   || '';
     }
   } catch(e) { console.error(e); }
 }
@@ -790,7 +788,6 @@ async function loadDocuments() {
         <p class="doc-item-preview">${escapeHtml(data.content.substring(0,80))}${data.content.length>80?'...':''}</p>`;
       list.appendChild(item);
     });
-    updateMemoryBanner();
   } catch(e) { console.error(e); }
 }
 async function deleteDocument(id) {
@@ -1030,9 +1027,6 @@ function renderMarkdown(text) {
 }
 
 // ── Chat turn helpers ─────────────────────────────────────────────────────────
-const MODEL_NAMES  = { gpt:'ChatGPT', gemini:'Gemini', claude:'Claude' };
-const MODEL_COLORS = { gpt:'#10a37f', gemini:'#4285F4', claude:'#c9824a' };
-
 function addChatTurn(question, model, responseText, statusType) {
   const chatArea = document.getElementById('chat-area');
   if (!chatArea) return 'turn-0';
@@ -1101,8 +1095,10 @@ async function runArena() {
   detectStatus.classList.add('hidden');
   setProgress(30);
 
-  // Step 2: Show card loading state
-  // Turn already created by addChatTurn above
+  // Step 2: Create chat turn placeholder
+  document.getElementById('user-question').value = '';
+  const currentTurnId = addChatTurn(question, primary, '', '');
+  window._currentTurnId = currentTurnId;
 
   // Step 3: Call chosen model
   const def = 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
