@@ -933,39 +933,99 @@ function speakText(text) {
 function renderMarkdown(text) {
   if (!text) return '';
   let t = text
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
-    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
-    .replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*([^*
-]+?)\*/g,'<em>$1</em>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>')
-    .replace(/^---+$/gm,'<hr>');
-  // Tables
-  t = t.replace(/(\|.+\|
-)((\|[-: |]+\|
-))((\|.+\|
-?)+)/gm, match => {
-    const rows = match.trim().split('
-').filter(r => r.trim());
-    if (rows.length < 2) return match;
-    const parseRow = (row, tag) => '<tr>' + row.split('|').slice(1,-1).map(c=>`<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
-    return '<table><thead>' + parseRow(rows[0],'th') + '</thead><tbody>' + rows.slice(2).map(r=>parseRow(r,'td')).join('') + '</tbody></table>';
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Code blocks
+  const codeBlocks = [];
+  t = t.split('```').map((part, i) => {
+    if (i % 2 === 0) return part;
+    const nl = part.indexOf('\n');
+    const code = nl >= 0 ? part.slice(nl + 1) : part;
+    codeBlocks.push(code);
+    return '[[CB' + (codeBlocks.length - 1) + ']]';
+  }).join('');
+
+  // Headers
+  t = t.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  t = t.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
+  t = t.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
+
+  // Bold and italic
+  t = t.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*([^\*\n]+?)\*/g, '<em>$1</em>');
+
+  // Inline code
+  t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Blockquote
+  t = t.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // HR
+  t = t.replace(/^---+$/gm, '<hr>');
+
+  // Tables — simple line-by-line approach
+  const tableLines = [];
+  let inTable = false;
+  const outputLines = [];
+  t.split('\n').forEach(line => {
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      if (!inTable) { inTable = true; tableLines.length = 0; }
+      tableLines.push(line);
+    } else {
+      if (inTable) {
+        inTable = false;
+        const rows = tableLines.filter(r => !/^\s*\|[-\s|:]+\|\s*$/.test(r));
+        if (rows.length > 0) {
+          let html = '<table>';
+          rows.forEach((row, i) => {
+            const tag = i === 0 ? 'th' : 'td';
+            const cells = row.split('|').slice(1, -1).map(c => c.trim());
+            html += '<tr>' + cells.map(c => '<' + tag + '>' + c + '</' + tag + '>').join('') + '</tr>';
+          });
+          html += '</table>';
+          outputLines.push(html);
+        }
+        tableLines.length = 0;
+      }
+      outputLines.push(line);
+    }
   });
+  if (inTable && tableLines.length > 0) {
+    const rows = tableLines.filter(r => !/^\s*\|[-\s|:]+\|\s*$/.test(r));
+    let html = '<table>';
+    rows.forEach((row, i) => {
+      const tag = i === 0 ? 'th' : 'td';
+      const cells = row.split('|').slice(1, -1).map(c => c.trim());
+      html += '<tr>' + cells.map(c => '<' + tag + '>' + c + '</' + tag + '>').join('') + '</tr>';
+    });
+    html += '</table>';
+    outputLines.push(html);
+  }
+  t = outputLines.join('\n');
+
   // Lists
-  t = t.replace(/^[*-] (.+)$/gm,'<li>$1</li>');
-  t = t.replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
-  t = t.replace(/(<li>[\s\S]*?<\/li>\n?)+/gm, m => '<ul>' + m + '</ul>');
+  t = t.replace(/^[ \t]*[\*\-] (.+)$/gm, '<li>$1</li>');
+  t = t.replace(/^[ \t]*\d+\.[ \t]+(.+)$/gm, '<li>$1</li>');
+  t = t.replace(/((<li>[^\n]*<\/li>\n?)+)/gm, '<ul>$1</ul>');
+
   // Paragraphs
-  t = t.split(/\n{2,}/).map(b => {
+  const blocks = t.split(/\n\n+/);
+  t = blocks.map(b => {
     b = b.trim();
     if (!b) return '';
-    if (/^<(h[1-3]|ul|ol|table|hr|pre|blockquote)/.test(b)) return b;
-    return '<p>' + b.replace(/\n/g,'<br>') + '</p>';
+    if (/^<(h[1-6]|ul|ol|table|pre|hr|blockquote)/.test(b)) return b;
+    if (b.startsWith('[[CB')) return b;
+    return '<p>' + b.replace(/\n/g, '<br>') + '</p>';
   }).join('\n');
+
+  // Restore code blocks
+  t = t.replace(/\[\[CB(\d+)\]\]/g, function(_, i) {
+    return '<pre><code>' + codeBlocks[parseInt(i)] + '</code></pre>';
+  });
+
   return t;
 }
 
