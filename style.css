@@ -19,7 +19,7 @@
   --sidebar-w: 256px;
   --r:         12px;
   --r-sm:      8px;
-  --font:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font:      'Consolas', 'SF Mono', 'Menlo', 'Monaco', monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -216,8 +216,8 @@ body {
 /* User bubble */
 .user-bubble-wrap { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .user-bubble {
-  background: var(--blue);
-  color: #fff;
+  background: #dddbd4;
+  color: var(--text);
   border-radius: var(--r) var(--r) 3px var(--r);
   padding: 10px 15px;
   max-width: 72%;
@@ -225,6 +225,12 @@ body {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+@media (prefers-color-scheme: dark) {
+  .user-bubble {
+    background: #2e2d29;
+    color: var(--text);
+  }
 }
 
 /* Model response */
@@ -353,7 +359,3 @@ body {
   .input-area { padding: 0.75rem 1rem 1rem; }
   .chat-turn, .other-opinions-section, .ask-others-wrap { padding: 0 1rem; }
 }
-
-/* ── Streaming cursor ── */
-@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
-.cursor-blink { animation: blink 1s ease infinite; font-weight:300; color: var(--muted); }
