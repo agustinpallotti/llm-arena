@@ -353,3 +353,7 @@ body {
   .input-area { padding: 0.75rem 1rem 1rem; }
   .chat-turn, .other-opinions-section, .ask-others-wrap { padding: 0 1rem; }
 }
+
+/* ── Streaming cursor ── */
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+.cursor-blink { animation: blink 1s ease infinite; font-weight:300; color: var(--muted); }
