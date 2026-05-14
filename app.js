@@ -451,25 +451,34 @@ async function loadThreadItem(threadId, data, btn) {
   document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   currentThreadId = threadId;
-  currentThread   = data.turns||[];
-  const last      = currentThread[currentThread.length-1];
-  if (!last) return;
+  currentThread   = data.turns || [];
 
-  document.getElementById('user-question').value = '';
-  // results div removed in chat layout
+  // Clear chat area and render all turns
+  const chatArea = document.getElementById('chat-area');
+  chatArea.innerHTML = '';
   document.getElementById('other-opinions-section').classList.add('hidden');
   document.getElementById('ask-others-btn').classList.remove('hidden');
+  document.getElementById('thread-banner').classList.add('hidden');
 
-  // Show primary answer
-  // rendered via addChatTurn loop above
-  lastResults  = { gpt:last.gpt, gemini:last.gemini, claude:last.claude };
-  chosenModel  = last.winner || 'claude';
+  currentThread.forEach((turn, i) => {
+    const winner = turn.winner || 'claude';
+    const turnId = addChatTurn(turn.question, winner, turn[winner] || '[Sin respuesta]', 'done');
+    window._currentTurnId = turnId;
+  });
+
+  const last = currentThread[currentThread.length - 1];
+  if (last) {
+    lastResults = { gpt: last.gpt, gemini: last.gemini, claude: last.claude };
+    chosenModel = last.winner || 'claude';
+  }
 
   const banner = document.getElementById('thread-banner');
   if (currentThread.length > 1) {
     banner.classList.remove('hidden');
-    banner.textContent = `💬 Conversación de ${currentThread.length} turnos — continuando hilo`;
-  } else { banner.classList.add('hidden'); }
+    banner.textContent = `💬 Conversación de ${currentThread.length} turnos`;
+  }
+
+  document.getElementById('user-question').focus();
 }
 
 window.newQuery = function() {
@@ -477,9 +486,10 @@ window.newQuery = function() {
   currentThread   = [];
   lastResults     = {};
   chosenModel     = null;
+  window._currentTurnId = null;
   document.querySelectorAll('.history-item').forEach(b => b.classList.remove('active'));
   document.getElementById('user-question').value = '';
-  // results div removed in chat layout
+  document.getElementById('chat-area').innerHTML = '';
   document.getElementById('progress-bar').classList.add('hidden');
   document.getElementById('detect-status').classList.add('hidden');
   document.getElementById('thread-banner').classList.add('hidden');
@@ -1056,10 +1066,7 @@ function addChatTurn(question, model, responseText, statusType) {
       <div class="model-response-body" id="mbody-${turnId}">${responseText ? renderMarkdown(responseText) : '<span style="color:var(--muted);font-style:italic">Pensando...</span>'}</div>
     </div>`;
   chatArea.appendChild(turn);
-  // Scroll to top of new turn (not bottom) so user reads from beginning
-  setTimeout(() => {
-    turn.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 50);
+  chatArea.scrollTop = chatArea.scrollHeight;
   return turnId;
 }
 
@@ -1068,12 +1075,8 @@ function updateChatTurn(turnId, responseText, statusType) {
   const status = document.getElementById('mstatus-' + turnId);
   if (body)   body.innerHTML   = renderMarkdown(responseText);
   if (status) { status.textContent = statusType==='done'?'Listo':'Error'; status.className = 'model-status ' + statusType; }
-  // Only scroll if user is already near bottom (don't interrupt reading)
   const chatArea = document.getElementById('chat-area');
-  if (chatArea) {
-    const distFromBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight;
-    if (distFromBottom < 120) chatArea.scrollTop = chatArea.scrollHeight;
-  }
+  if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -1108,8 +1111,10 @@ async function runArena() {
   detectStatus.classList.add('hidden');
   setProgress(30);
 
-  // Step 2: Show card loading state
-  // Turn already created by addChatTurn above
+  // Step 2: Create chat turn and assign ID
+  const currentTurnId = addChatTurn(question, primary, '', '');
+  document.getElementById('user-question').value = '';
+  window._currentTurnId = currentTurnId;
 
   // Step 3: Call chosen model
   const def = 'Eres un asistente experto. Responde de forma clara, precisa y concisa en español.';
